@@ -6,6 +6,7 @@ import {
   Quicksand_700Bold,
 } from "@expo-google-fonts/quicksand";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { colors } from "../constants/theme";
 
 export default function RootLayout() {
@@ -20,11 +21,13 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="settings" options={{ title: "Settings" }} />
-      <Stack.Screen name="new-entry" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="quick-entry" options={{ presentation: "modal", headerShown: false }} />
-    </Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ title: "Settings" }} />
+        <Stack.Screen name="new-entry" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="quick-entry" options={{ presentation: "modal", headerShown: false }} />
+      </Stack>
+    </GestureHandlerRootView>
   );
 }
