@@ -1,9 +1,9 @@
 import { Text, View, StyleSheet } from "react-native";
 
-export default function Calendar() {
+export default function Insights() {
   return (
     <View style={styles.container}>
-      <Text>Calendar</Text>
+      <Text>Insights</Text>
     </View>
   );
 }
