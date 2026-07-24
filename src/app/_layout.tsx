@@ -1,4 +1,6 @@
 import { Stack } from "expo-router";
+import { useEffect } from "react";
+import { initDatabase } from "../lib/db";
 import {
   useFonts,
   Quicksand_400Regular,
@@ -20,6 +22,10 @@ export default function RootLayout() {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 
+  useEffect(() => {
+    initDatabase();
+  }, []);
+  
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack>
