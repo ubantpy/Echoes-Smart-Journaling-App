@@ -1,13 +1,38 @@
 import { useState } from "react";
-import { Text, View, StyleSheet, Pressable } from "react-native";
+import { Text, View, StyleSheet, Pressable, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { colors, fonts } from "../constants/theme";
+import { insertEntry } from "@/lib/db";
 
 type Mode = "choose" | "recording" | "text";
+
+// Produce current YYYY-MM-DD date
+function getTodayDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  // Months in JS Date are 0-11, then make sure all months are 2 digit
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(1, "0");
+  const date = `${year}-${month}-${day}`;
+  return date;
+}
 
 export default function NewEntry() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("choose");
+  const [text, setText] = useState("");
+
+  // 
+  const handleSave = () => {
+    if(text.trim().length == 0) return;
+
+    insertEntry({
+      entryDate: getTodayDate(),
+      mainText: text.trim(),
+      // Add sentiment later
+    });
+    router.back();
+  };
 
   return (
     <View style={styles.container}>
@@ -15,7 +40,7 @@ export default function NewEntry() {
         <Text style={styles.closeText}>✕</Text>
       </Pressable>
 
-      {mode === "choose" && (
+      {mode == "choose" && (
         <View style={styles.centerContent}>
           <Text style={styles.title}>New entry</Text>
           <Pressable
@@ -33,7 +58,7 @@ export default function NewEntry() {
         </View>
       )}
 
-      {mode === "recording" && (
+      {mode == "recording" && (
         <View style={styles.centerContent}>
           <View style={styles.recordCircle} />
           <Text style={styles.timerText}>0:00</Text>
@@ -44,8 +69,19 @@ export default function NewEntry() {
       {mode === "text" && (
         <View style={styles.centerContent}>
           <Text style={styles.title}>Write your entry</Text>
-          <View style={styles.textBoxPlaceholder} />
-          <Text style={styles.hintText}>0 / 500 words</Text>
+          <TextInput
+            style={styles.textInput}
+            multiline
+            placeholder="What's on your mind?"
+            placeholderTextColor={colors.textSecondary}
+            value={text}
+            onChangeText={setText}
+          />
+          <Text style={styles.hintText}>{text.trim().split(/\s+/).filter(Boolean).length} / 500 words</Text>
+
+          <Pressable style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveText}>Save entry</Text>
+          </Pressable>
         </View>
       )}
     </View>
@@ -73,6 +109,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+    width: "100%",
   },
   title: {
     fontFamily: fonts.bold,
@@ -115,10 +152,28 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 8,
   },
-  textBoxPlaceholder: {
+  textInput: {
     width: "100%",
-    height: 220,
+    minHeight: 220,
     backgroundColor: colors.surface,
     borderRadius: 16,
+    padding: 16,
+    fontFamily: fonts.regular,
+    fontSize: 15,
+    color: colors.textPrimary,
+    textAlignVertical: "top",
+  },
+  saveButton: {
+    backgroundColor: colors.accent,
+    borderRadius: 24,
+    paddingVertical: 18,
+    alignItems: "center",
+    width: "100%",
+    marginTop: 20,
+  },
+  saveText: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.background,
   },
 });

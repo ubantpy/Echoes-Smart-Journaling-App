@@ -1,6 +1,5 @@
-import { Stack } from "expo-router";
 import { useEffect } from "react";
-import { initDatabase } from "../lib/db";
+import { Stack } from "expo-router";
 import {
   useFonts,
   Quicksand_400Regular,
@@ -10,6 +9,7 @@ import {
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { colors } from "../constants/theme";
+import { initDatabase } from "../lib/db";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -18,14 +18,14 @@ export default function RootLayout() {
     Quicksand_700Bold,
   });
 
+  useEffect(() => {
+    initDatabase();
+  }, []);
+
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 
-  useEffect(() => {
-    initDatabase();
-  }, []);
-  
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack>

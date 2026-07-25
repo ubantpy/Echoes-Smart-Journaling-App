@@ -1,27 +1,49 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Text, View, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
   FadeInDown,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
-  runOnJS,
 } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
+import { getRecentEntries } from "../../lib/db";
+import { Entry } from "../../lib/types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const recentDays = [
-  { day: "Mon", mood: colors.mood.veryLow },
-  { day: "Tue", mood: colors.mood.low },
-  { day: "Wed", mood: colors.mood.neutral },
-  { day: "Thu", mood: colors.mood.good },
-  { day: "Fri", mood: colors.mood.great },
-  { day: "Sat", mood: colors.mood.neutral },
-  { day: "Today", mood: colors.mood.great },
-];
+const moodColourMap: Record<string, string> = {
+  very_positive: colors.mood.great,
+  positive: colors.mood.good,
+  neutral: colors.mood.neutral,
+  negative: colors.mood.low,
+  very_negative: colors.mood.veryLow,
+};
+// Take date YYYY-MM-DD and torn either into Today or weekday (Wed, Thu...)
+function formatDayLabel(dateStr: string): string {
+  const today = new Date();
+  const date = new Date(dateStr + "T00:00:00");
+  // Calculate how many days apart 'today' and 'date' are
+  const diffDays = Math.round((today.getTime() - date.getTime()) / 86400000/**ms per day */);
+  if (diffDays == 0) return "Today";
+  return date.toLocaleDateString("en-GB", { weekday: "short" });
+};
+
+// Get last 7 dates for the recent days section
+function getLast7Dates(): string[] {
+  const dates: string[] = [];
+
+  for(let i=6; i>=0; i--){
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    dates.push(`${year}-${month}-${day}`);
+  }
+  return dates;
+}
 
 const streakCount = 5;
 
@@ -128,12 +150,30 @@ function SummaryCard() {
 
 export default function Home() {
   const router = useRouter();
+  const [entries, setEntries] = useState<Entry[]>([]);
+
+  useEffect(() => {
+    setEntries(getRecentEntries(7));
+  }, []);
+
+  const entryMap = new Map(entries.map((e) => [e.entryDate, e]));
+
+  const recentDays = getLast7Dates().map((dateStr) => {
+    const entry = entryMap.get(dateStr);
+    return {
+      day: formatDayLabel(dateStr),
+      mood:
+        entry && entry.sentimentLabel
+          ? moodColourMap[entry.sentimentLabel]
+          : colors.surface,
+    };
+  });
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Animated.View entering={FadeInDown.duration(400).delay(0)}>
         <Text style={styles.greeting}>Good evening</Text>
-        <Text style={styles.date}>Tuesday, 22 July</Text>
+        <Text style={styles.date}>Saturday, 25 July</Text>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(400).delay(80)}>
