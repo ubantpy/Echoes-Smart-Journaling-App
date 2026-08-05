@@ -3,6 +3,7 @@ import { Text, View, StyleSheet, Pressable, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { colors, fonts } from "../constants/theme";
 import { insertEntry } from "@/lib/db";
+import { analyseSentiment } from "@/lib/sentiment";
 
 type Mode = "choose" | "recording" | "text";
 
@@ -23,14 +24,18 @@ export default function NewEntry() {
   const [text, setText] = useState("");
 
   // 
-  const handleSave = () => {
-    if(text.trim().length == 0) return;
+  const handleSave = async () => {
+    if (text.trim().length === 0) return;
+
+    const sentiment = await analyseSentiment(text.trim());
 
     insertEntry({
       entryDate: getTodayDate(),
       mainText: text.trim(),
-      // Add sentiment later
+      sentimentLabel: sentiment?.label ?? undefined,
+      sentimentConfidence: sentiment?.confidence ?? undefined,
     });
+
     router.back();
   };
 
