@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Text, View, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -29,6 +29,23 @@ function formatDayLabel(dateStr: string): string {
   if (dateStr == todayStr) return "Today";
   return date.toLocaleDateString("en-GB", { weekday: "short" });
 };
+
+/** Returns a time-appropriate greeting*/
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour > 3 && hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+/**Returns today's date formatted for display, e.g. "Thursday, 7 August"*/
+function getDisplayDate(): string {
+  return new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
 
 const summaries = [
   {
@@ -138,11 +155,14 @@ export default function Home() {
   const [streakCount, setStreakCount] = useState(0);
 
 
-  useEffect(() => {
-    setEntries(getRecentEntries(7));
-    setHasEntryToday(!!getEntryForDate(getTodayDate()));
-    setStreakCount(getStreak());
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      // Re-fetch all home screen data whenever the screen comes into focus
+      setEntries(getRecentEntries(7));
+      setHasEntryToday(!!getEntryForDate(getTodayDate()));
+      setStreakCount(getStreak());
+    }, [])
+  );
 
   const entryMap = new Map(entries.map((e) => [e.entryDate, e]));
 
@@ -160,8 +180,8 @@ export default function Home() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Animated.View entering={FadeInDown.duration(400).delay(0)}>
-        <Text style={styles.greeting}>Good evening</Text>
-        <Text style={styles.date}>Saturday, 25 July</Text>
+        <Text style={styles.greeting}>{getGreeting()}</Text>
+<Text style={styles.date}>{getDisplayDate()}</Text>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(400).delay(80)}>

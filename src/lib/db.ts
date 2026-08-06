@@ -139,6 +139,8 @@ export function getStreak(): number {
   return streak;
 }
 
+
+
 function mapRowToEntry(row: any): Entry{
     return{
         id: row.id,
