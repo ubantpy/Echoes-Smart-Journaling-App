@@ -41,18 +41,37 @@ export function insertEntry(params: {
     const createdAt = new Date().toISOString();
     const lowConfidence = params.sentimentConfidence !== undefined && params.sentimentConfidence < 50 ? 1 : 0;
 
-    db.runSync(
-        `INSERT INTO entries (entry_date, created_at, main_text, sentiment_label, sentiment_confidence, low_confidence)
-        VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-            params.entryDate,
-            createdAt,
-            params.mainText,
-            params.sentimentLabel ?? null,
-            params.sentimentConfidence ?? null,
-            lowConfidence,
-        ]
+    // If an entry already exists for this date, update it instead
+    const existing = db.getFirstSync<{id: number}>(
+        `SELECT id FROM entries WHERE entry_date = ?`,
+        [params.entryDate]
     );
+
+    if (existing) {
+        db.runSync(
+            `UPDATE entries SET main_text = ?, sentiment_label = ?, sentiment_confidence = ?, low_confidence = ? WHERE entry_date = ?`,
+            [
+                params.mainText,
+                params.sentimentLabel ?? null,
+                params.sentimentConfidence ?? null,
+                lowConfidence,
+                params.entryDate,
+            ]
+        );
+    } else {
+        db.runSync(
+            `INSERT INTO entries (entry_date, created_at, main_text, sentiment_label, sentiment_confidence, low_confidence)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+                params.entryDate,
+                createdAt,
+                params.mainText,
+                params.sentimentLabel ?? null,
+                params.sentimentConfidence ?? null,
+                lowConfidence,
+            ]
+        );
+    }
 }
 
 export function addQuickEntry(entryDate: string, text: string){

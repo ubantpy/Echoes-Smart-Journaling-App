@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
-import { getRecentEntries } from "../../lib/db";
+import { getRecentEntries, getEntryForDate } from "../../lib/db";
 import { Entry } from "../../lib/types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -29,6 +29,14 @@ function formatDayLabel(dateStr: string): string {
   if (diffDays == 0) return "Today";
   return date.toLocaleDateString("en-GB", { weekday: "short" });
 };
+
+function getTodayDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 // Get last 7 dates for the recent days section
 function getLast7Dates(): string[] {
@@ -151,9 +159,11 @@ function SummaryCard() {
 export default function Home() {
   const router = useRouter();
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [hasEntryToday, setHasEntryToday] = useState(false);
 
   useEffect(() => {
     setEntries(getRecentEntries(7));
+    setHasEntryToday(!!getEntryForDate(getTodayDate()));
   }, []);
 
   const entryMap = new Map(entries.map((e) => [e.entryDate, e]));
@@ -178,10 +188,18 @@ export default function Home() {
 
       <Animated.View entering={FadeInDown.duration(400).delay(80)}>
         <AnimatedPressable
-          style={styles.newEntryButton}
-          onPress={() => router.push("/new-entry")}
+          style={[styles.newEntryButton, hasEntryToday && styles.newEntryButtonDone]}
+          onPress={() => {
+            if (hasEntryToday) {
+              alert("You've already written today's entry. Use Quick Entry to add a note.");
+              return;
+            }
+            router.push("/new-entry");
+          }}
         >
-          <Text style={styles.newEntryText}>Daily entry</Text>
+          <Text style={styles.newEntryText}>
+            {hasEntryToday ? "Entry done ✓" : "Daily entry"}
+          </Text>
         </AnimatedPressable>
       </Animated.View>
 
@@ -248,6 +266,9 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     alignItems: "center",
     marginTop: 32,
+  },
+  newEntryButtonDone: {
+    backgroundColor: colors.accent,
   },
   newEntryText: {
     fontFamily: fonts.bold,
