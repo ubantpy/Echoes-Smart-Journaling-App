@@ -1,29 +1,41 @@
-import { Text, View, StyleSheet, Pressable } from "react-native";
-import { useRouter } from "expo-router";
+import { useState, useCallback } from "react";
+import { Text, View, StyleSheet, Pressable, ScrollView } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
+import { getStreak, getLongestStreak, getTotalEntries, getMoodDistribution } from "../../lib/db";
 
-const moodCounts = [
-  { mood: "great", label: "Great", count: 9, color: colors.mood.great },
-  { mood: "good", label: "Good", count: 12, color: colors.mood.good },
-  { mood: "neutral", label: "Neutral", count: 6, color: colors.mood.neutral },
-  { mood: "low", label: "Low", count: 4, color: colors.mood.low },
-  { mood: "veryLow", label: "Very low", count: 2, color: colors.mood.veryLow },
-];
-
-const totalEntries = moodCounts.reduce((sum, m) => sum + m.count, 0);
-
-const stats = [
-  { label: "Total entries", value: "33" },
-  { label: "Current streak", value: "5 days" },
-  { label: "Longest streak", value: "12 days" },
+/**Maps sentiment labels to display config - order determines bar segment order*/
+const MOOD_CONFIG = [
+  { key: "very_positive", label: "Great", color: colors.mood.great},
+  { key: "positive", label: "Good", color: colors.mood.good},
+  { key: "neutral", label: "Neutral",  color: colors.mood.neutral},
+  { key: "negative", label: "Low", color: colors.mood.low},
+  { key: "very_negative", label: "Very low", color: colors.mood.veryLow},
 ];
 
 export default function You() {
   const router = useRouter();
+  const [distribution, setDistribution] = useState<Record<string, number>>({});
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
+
+  // Refetch all stats whenever the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      setDistribution(getMoodDistribution());
+      setTotalEntries(getTotalEntries());
+      setStreak(getStreak());
+      setLongestStreak(getLongestStreak());
+    }, [])
+  );
+
+  // Use only entries that have a sentiment label for percentage calculations
+  const totalWithMood = MOOD_CONFIG.reduce((sum, m) => sum + (distribution[m.key] ?? 0), 0);
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>You</Text>
         <Pressable
@@ -37,39 +49,43 @@ export default function You() {
       <Animated.View entering={FadeInDown.duration(400).delay(0)}>
         <Text style={styles.sectionLabel}>Mood distribution</Text>
         <View style={styles.distributionBar}>
-          {moodCounts.map((item, i) => (
-            <View
-              key={i}
-              style={{
-                flex: item.count,
-                backgroundColor: item.color,
-              }}
-            />
-          ))}
+          {MOOD_CONFIG.map((item) => {
+            const count = distribution[item.key] ?? 0;
+            // Skip segments with no entries so the bar stays clean
+            if (count == 0) return null;
+            return (
+              <View key={item.key} style={{ flex: count, backgroundColor: item.color }} />
+            );
+          })}
         </View>
         <View style={styles.legend}>
-          {moodCounts.map((item, i) => (
-            <View key={i} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-              <Text style={styles.legendLabel}>{item.label}</Text>
-              <Text style={styles.legendCount}>
-                {Math.round((item.count / totalEntries) * 100)}%
-              </Text>
-            </View>
-          ))}
+          {MOOD_CONFIG.map((item) => {
+            const count = distribution[item.key] ?? 0;
+            const pct = totalWithMood > 0
+              ? Math.round((count / totalWithMood) * 100)
+              : 0;
+            return (
+              <View key={item.key} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                <Text style={styles.legendLabel}>{item.label}</Text>
+                <Text style={styles.legendCount}>{pct}%</Text>
+              </View>
+            );
+          })}
         </View>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(400).delay(80)}>
         <Text style={styles.sectionLabel}>Consistency</Text>
         <View style={styles.statsCard}>
-          {stats.map((stat, i) => (
+          {[
+            { label: "Total entries",   value: String(totalEntries)      },
+            { label: "Current streak",  value: `${streak} days`          },
+            { label: "Longest streak",  value: `${longestStreak} days`   },
+          ].map((stat, i, arr) => (
             <View
               key={i}
-              style={[
-                styles.statRow,
-                i !== stats.length - 1 && styles.statRowDivider,
-              ]}
+              style={[styles.statRow, i !== arr.length - 1 && styles.statRowDivider]}
             >
               <Text style={styles.statLabel}>{stat.label}</Text>
               <Text style={styles.statValue}>{stat.value}</Text>
@@ -77,7 +93,7 @@ export default function You() {
           ))}
         </View>
       </Animated.View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -85,8 +101,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  content: {
     padding: 24,
     paddingTop: 64,
+    paddingBottom: 48,
   },
   headerRow: {
     flexDirection: "row",

@@ -139,7 +139,55 @@ export function getStreak(): number {
   return streak;
 }
 
+/** Returns count of entries grouped by sentiment label*/
+export function getMoodDistribution(): Record<string, number> {
+  const rows = db.getAllSync<{ sentiment_label: string; count: number }>(
+    `SELECT sentiment_label, COUNT(*) as count
+     FROM entries
+     WHERE is_deleted = 0 AND sentiment_label IS NOT NULL
+     GROUP BY sentiment_label`
+  );
+  const result: Record<string, number> = {};
+  rows.forEach((r) => { result[r.sentiment_label] = r.count; });
+  return result;
+}
 
+/** Returns total number of non-deleted entries*/
+export function getTotalEntries(): number {
+  const row = db.getFirstSync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM entries WHERE is_deleted = 0`
+  );
+  return row?.count ?? 0;
+}
+
+/** Returns the longest consecutive day streak across all time*/
+export function getLongestStreak(): number {
+  const rows = db.getAllSync<{ entry_date: string }>(
+    `SELECT entry_date FROM entries WHERE is_deleted = 0 ORDER BY entry_date ASC`
+  );
+
+  if (rows.length == 0) return 0;
+
+  let longest = 1;
+  let current = 1;
+
+  // Walk forward through dates. increment on consecutive days, reset on gaps
+  for (let i = 1; i < rows.length; i++) {
+    const prev = new Date(rows[i - 1].entry_date + "T00:00:00");
+    const curr = new Date(rows[i].entry_date + "T00:00:00");
+    const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+
+    if (diffDays == 1) {
+      current++;
+      if (current > longest) longest = current;
+    } 
+    else {
+      current = 1;
+    }
+  }
+
+  return longest;
+}
 
 function mapRowToEntry(row: any): Entry{
     return{
