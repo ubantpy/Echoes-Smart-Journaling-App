@@ -8,8 +8,9 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
-import { getRecentEntries, getEntryForDate } from "../../lib/db";
+import { getRecentEntries, getEntryForDate, getStreak } from "../../lib/db";
 import { Entry } from "../../lib/types";
+import { getTodayDate, getLastNDates } from "../../lib/dateUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -20,40 +21,14 @@ const moodColourMap: Record<string, string> = {
   negative: colors.mood.low,
   very_negative: colors.mood.veryLow,
 };
-// Take date YYYY-MM-DD and torn either into Today or weekday (Wed, Thu...)
+/**Take date YYYY-MM-DD and turn either into Today or weekday (Wed, Thu...)*/
 function formatDayLabel(dateStr: string): string {
-  const today = new Date();
+  const todayStr = getTodayDate();
   const date = new Date(dateStr + "T00:00:00");
   // Calculate how many days apart 'today' and 'date' are
-  const diffDays = Math.round((today.getTime() - date.getTime()) / 86400000/**ms per day */);
-  if (diffDays == 0) return "Today";
+  if (dateStr == todayStr) return "Today";
   return date.toLocaleDateString("en-GB", { weekday: "short" });
 };
-
-function getTodayDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-// Get last 7 dates for the recent days section
-function getLast7Dates(): string[] {
-  const dates: string[] = [];
-
-  for(let i=6; i>=0; i--){
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    dates.push(`${year}-${month}-${day}`);
-  }
-  return dates;
-}
-
-const streakCount = 5;
 
 const summaries = [
   {
@@ -160,15 +135,18 @@ export default function Home() {
   const router = useRouter();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [hasEntryToday, setHasEntryToday] = useState(false);
+  const [streakCount, setStreakCount] = useState(0);
+
 
   useEffect(() => {
     setEntries(getRecentEntries(7));
     setHasEntryToday(!!getEntryForDate(getTodayDate()));
+    setStreakCount(getStreak());
   }, []);
 
   const entryMap = new Map(entries.map((e) => [e.entryDate, e]));
 
-  const recentDays = getLast7Dates().map((dateStr) => {
+  const recentDays = getLastNDates(7).map((dateStr) => {
     const entry = entryMap.get(dateStr);
     return {
       day: formatDayLabel(dateStr),
