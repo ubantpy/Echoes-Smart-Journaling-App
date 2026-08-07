@@ -21,8 +21,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     initDatabase();
-    // Runs in the background, does not block app loading
-    generateSummariesIfNeeded();
   }, []);
 
   if (!fontsLoaded) {

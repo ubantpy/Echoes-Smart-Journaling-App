@@ -12,6 +12,7 @@ import { getRecentEntries, getEntryForDate, getStreak, getSummary } from "../../
 import { Entry, Summary } from "../../lib/types";
 import { getTodayDate, getLastNDates } from "../../lib/dateUtils";
 import { getLastWeekRange, getLastMonthRange, formatPeriodLabel } from "../../lib/summaryUtils";
+import { generateSummariesIfNeeded } from "../../lib/generateSummaries";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -107,9 +108,12 @@ function buildEchoCard(
   };
 }
 
+// Number of lines shown when the card is collapsed
+const COLLAPSED_LINES = 3;
+
 function SummaryCard({ cards }: { cards: EchoCard[] }) {
-  const router = useRouter();
   const [index, setIndex] = useState(0);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const PEEK = 4;
@@ -120,6 +124,11 @@ function SummaryCard({ cards }: { cards: EchoCard[] }) {
   const onMomentumScrollEnd = (e: any) => {
     const newIndex = Math.round(e.nativeEvent.contentOffset.x / SNAP_INTERVAL);
     setIndex(newIndex);
+  };
+
+  // Toggle expanded state for a card, collapse if already expanded
+  const handleCardPress = (i: number) => {
+    setExpandedIndex(expandedIndex == i ? null : i);
   };
 
   return (
@@ -133,24 +142,39 @@ function SummaryCard({ cards }: { cards: EchoCard[] }) {
         contentContainerStyle={{ paddingHorizontal: 24 + PEEK }}
         onMomentumScrollEnd={onMomentumScrollEnd}
       >
-        {cards.map((item, i) => (
-          <Pressable
-            key={i}
-            style={[styles.summaryCard, { width: CARD_WIDTH, marginRight: GAP }]}
-            onPress={() => router.push("/(tabs)/insights")}
-          >
-            <View style={styles.summaryHeaderRow}>
-              <Text style={styles.summaryLabel}>{item.label}</Text>
-              <View style={styles.dotsRow}>
-                {cards.map((_, d) => (
-                  <View key={d} style={[styles.dot, d === index && styles.dotActive]} />
-                ))}
+        {cards.map((item, i) => {
+          const isExpanded = expandedIndex == i;
+          return (
+            <Pressable
+              key={i}
+              style={[styles.summaryCard, { width: CARD_WIDTH, marginRight: GAP }]}
+              onPress={() => handleCardPress(i)}
+            >
+              <View style={styles.summaryHeaderRow}>
+                <Text style={styles.summaryLabel}>{item.label}</Text>
+                <View style={styles.dotsRow}>
+                  {cards.map((_, d) => (
+                    <View key={d} style={[styles.dot, d == index && styles.dotActive]} />
+                  ))}
+                </View>
               </View>
-            </View>
-            <Text style={styles.summaryTitle}>{item.title}</Text>
-            <Text style={styles.summaryText}>{item.text}</Text>
-          </Pressable>
-        ))}
+              <Text style={styles.summaryTitle}>{item.title}</Text>
+              {/* Show limited lines when collapsed, full text when expanded */}
+              <Text
+                style={styles.summaryText}
+                numberOfLines={isExpanded ? undefined : COLLAPSED_LINES}
+              >
+                {item.text}
+              </Text>
+              {/* Only show the toggle hint when the card has a real echo */}
+              {item.title != "No echo yet" && (
+                <Text style={styles.expandHint}>
+                  {isExpanded ? "Show less" : "Read more"}
+                </Text>
+              )}
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -163,9 +187,10 @@ export default function Home() {
   const [streakCount, setStreakCount] = useState(0);
   const [echoCards, setEchoCards] = useState<EchoCard[]>([]);
 
-
   useFocusEffect(
-    useCallback(() => {
+  useCallback(() => {
+    // Generate echoes first, then fetch everything so the screen is always current
+    generateSummariesIfNeeded().then(() => {
       // Refetch all home screen data whenever the screen comes into focus
       setEntries(getRecentEntries(7));
       setHasEntryToday(!!getEntryForDate(getTodayDate()));
@@ -178,8 +203,9 @@ export default function Home() {
         buildEchoCard("weekly", week.start, getSummary("weekly", week.start)),
         buildEchoCard("monthly", month.start, getSummary("monthly", month.start)),
       ]);
-    }, [])
-  );
+    });
+  }, [])
+);
 
   const entryMap = new Map(entries.map((e) => [e.entryDate, e]));
 
@@ -360,6 +386,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 8,
     lineHeight: 20,
+  },
+  expandHint: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.accent,
+    marginTop: 8,
   },
   stripRow: {
     flexDirection: "row",

@@ -21,9 +21,8 @@ async function generateIfNeeded(
   if (entries.length < MIN_ENTRIES) return;
 
   // Concatenate entry texts into one block for the backend
-  const text = entries.map((e) => e.mainText).join("\n\n");
-
-  const summaryText = await fetchSummary(text);
+  const texts = entries.map((e) => e.mainText);
+  const summaryText = await fetchSummary(texts);
   if (!summaryText) return;
 
   // Persist the generated echo to SQLite
