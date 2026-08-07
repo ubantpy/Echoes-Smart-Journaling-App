@@ -8,9 +8,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
-import { getRecentEntries, getEntryForDate, getStreak } from "../../lib/db";
-import { Entry } from "../../lib/types";
+import { getRecentEntries, getEntryForDate, getStreak, getSummary } from "../../lib/db";
+import { Entry, Summary } from "../../lib/types";
 import { getTodayDate, getLastNDates } from "../../lib/dateUtils";
+import { getLastWeekRange, getLastMonthRange, formatPeriodLabel } from "../../lib/summaryUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -47,19 +48,6 @@ function getDisplayDate(): string {
   });
 }
 
-const summaries = [
-  {
-    label: "Last week",
-    title: "A steady week",
-    text: "You mentioned feeling more energized midweek, especially after Wednesday's walk. Thursday and Friday carried a calmer, more reflective tone.",
-  },
-  {
-    label: "Last month",
-    title: "Finding your rhythm",
-    text: "Your entries last month leaned optimistic overall, with a few quieter stretches around the second week. Recurring themes: work deadlines, evening walks, and catching up with friends.",
-  },
-];
-
 function AnimatedPressable({
   style,
   onPress,
@@ -93,7 +81,33 @@ function AnimatedPressable({
   );
 }
 
-function SummaryCard() {
+// Defines what each echo card shows - real or placeholder
+type EchoCard = {
+  label: string;
+  title: string;
+  text: string;
+};
+
+// Builds a display card from a real summary or returns a placeholder
+function buildEchoCard(
+  periodType: "weekly" | "monthly",
+  start: string,
+  summary: Summary | null
+): EchoCard {
+  const label = formatPeriodLabel(periodType, start);
+  if (summary) {
+    return { label, title: "Your echo", text: summary.summaryText };
+  }
+  // Placeholder - shown when not enough entries exist yet
+  const periodWord = periodType == "weekly" ? "week" : "month";
+  return {
+    label,
+    title: "No echo yet",
+    text: `You haven't journaled enough last ${periodWord}. Keep going and you'll start seeing your echoes here.`,
+  };
+}
+
+function SummaryCard({ cards }: { cards: EchoCard[] }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -119,23 +133,17 @@ function SummaryCard() {
         contentContainerStyle={{ paddingHorizontal: 24 + PEEK }}
         onMomentumScrollEnd={onMomentumScrollEnd}
       >
-        {summaries.map((item, i) => (
+        {cards.map((item, i) => (
           <Pressable
             key={i}
-            style={[
-              styles.summaryCard,
-              { width: CARD_WIDTH, marginRight: GAP },
-            ]}
+            style={[styles.summaryCard, { width: CARD_WIDTH, marginRight: GAP }]}
             onPress={() => router.push("/(tabs)/insights")}
           >
             <View style={styles.summaryHeaderRow}>
               <Text style={styles.summaryLabel}>{item.label}</Text>
               <View style={styles.dotsRow}>
-                {summaries.map((_, d) => (
-                  <View
-                    key={d}
-                    style={[styles.dot, d === index && styles.dotActive]}
-                  />
+                {cards.map((_, d) => (
+                  <View key={d} style={[styles.dot, d === index && styles.dotActive]} />
                 ))}
               </View>
             </View>
@@ -153,14 +161,23 @@ export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [hasEntryToday, setHasEntryToday] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
+  const [echoCards, setEchoCards] = useState<EchoCard[]>([]);
 
 
   useFocusEffect(
     useCallback(() => {
-      // Re-fetch all home screen data whenever the screen comes into focus
+      // Refetch all home screen data whenever the screen comes into focus
       setEntries(getRecentEntries(7));
       setHasEntryToday(!!getEntryForDate(getTodayDate()));
       setStreakCount(getStreak());
+
+      // Build echo cards from SQLite - always show both, real or placeholder
+      const week = getLastWeekRange();
+      const month = getLastMonthRange();
+      setEchoCards([
+        buildEchoCard("weekly", week.start, getSummary("weekly", week.start)),
+        buildEchoCard("monthly", month.start, getSummary("monthly", month.start)),
+      ]);
     }, [])
   );
 
@@ -219,7 +236,7 @@ export default function Home() {
 
       <Animated.View entering={FadeInDown.duration(400).delay(260)}>
         <Text style={styles.sectionLabel}>Looking back</Text>
-        <SummaryCard />
+        <SummaryCard cards={echoCards} />
       </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(400).delay(320)}>

@@ -1,6 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import {Entry, Summary, SentimentLabel} from "./types";
-import { formatDateString } from "./dateUtils";
+import { formatDateString, getTodayDate } from "./dateUtils";
 
 const db = SQLite.openDatabaseSync("echoes.db");
 
@@ -31,8 +31,6 @@ export function initDatabase() {
 }
 
 // Entries
-
-
 export function insertEntry(params: {
     entryDate: string;
     mainText: string;
@@ -111,6 +109,17 @@ export function getRecentEntries(limit: number): Entry[]{
     return rows.map(mapRowToEntry);
 }
 
+/** Returns all non-deleted entries within a date range (inclusive), oldest first*/
+export function getEntriesInRange(start: string, end: string): Entry[] {
+  const rows = db.getAllSync<any>(
+    `SELECT * FROM entries
+     WHERE is_deleted = 0 AND entry_date >= ? AND entry_date <= ?
+     ORDER BY entry_date ASC`,
+    [start, end]
+  );
+  return rows.map(mapRowToEntry);
+}
+
 // Count consecutive days ending today that have at least one entry
 export function getStreak(): number {
   // Fetch all non-deleted entry dates — newest first
@@ -124,7 +133,7 @@ export function getStreak(): number {
   const dateSet = new Set(rows.map((r) => r.entry_date));
 
   let streak = 0;
-  const cursor = new Date();
+  const cursor = new Date(getTodayDate() + "T00:00:00");
 
   // Walk backwards day-by-day from today; stop on the first gap
   for (let i = 0; i < 365; i++) {
