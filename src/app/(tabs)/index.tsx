@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect  } from "react";
 import { Text, View, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import Animated, {
@@ -6,6 +6,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withRepeat,
 } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
 import { getRecentEntries, getEntryForDate, getStreak, getSummary } from "../../lib/db";
@@ -13,6 +14,7 @@ import { Entry, Summary } from "../../lib/types";
 import { getTodayDate, getLastNDates } from "../../lib/dateUtils";
 import { getLastWeekRange, getLastMonthRange, formatPeriodLabel } from "../../lib/summaryUtils";
 import { generateSummariesIfNeeded } from "../../lib/generateSummaries";
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -150,6 +152,7 @@ function SummaryCard({ cards }: { cards: EchoCard[] }) {
               style={[styles.summaryCard, { width: CARD_WIDTH, marginRight: GAP }]}
               onPress={() => handleCardPress(i)}
             >
+              <View style={styles.cardHighlight} />
               <View style={styles.summaryHeaderRow}>
                 <Text style={styles.summaryLabel}>{item.label}</Text>
                 <View style={styles.dotsRow}>
@@ -216,7 +219,7 @@ export default function Home() {
       mood:
         entry && entry.sentimentLabel
           ? moodColourMap[entry.sentimentLabel]
-          : colors.surface,
+          : null,
     };
   });
 
@@ -224,7 +227,7 @@ export default function Home() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Animated.View entering={FadeInDown.duration(400).delay(0)}>
         <Text style={styles.greeting}>{getGreeting()}</Text>
-<Text style={styles.date}>{getDisplayDate()}</Text>
+        <Text style={styles.date}>{getDisplayDate()}</Text>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(400).delay(80)}>
@@ -238,6 +241,7 @@ export default function Home() {
             router.push("/new-entry");
           }}
         >
+          <View style={styles.buttonHighlight} />
           <Text style={styles.newEntryText}>
             {hasEntryToday ? "Entry done ✓" : "Daily entry"}
           </Text>
@@ -249,6 +253,7 @@ export default function Home() {
           style={styles.quickEntryButton}
           onPress={() => router.push("/quick-entry")}
         >
+          <View style={styles.buttonHighlightSubtle} />
           <Text style={styles.quickEntryText}>Quick entry</Text>
         </AnimatedPressable>
       </Animated.View>
@@ -270,7 +275,16 @@ export default function Home() {
         <View style={styles.stripRow}>
           {recentDays.map((item, i) => (
             <View key={i} style={styles.stripItem}>
-              <View style={[styles.blob, { backgroundColor: item.mood }]} />
+              <View
+                style={[
+                  styles.blob,
+                  item.mood
+                    ? { backgroundColor: item.mood }
+                    : item.day == "Today"
+                      ? { backgroundColor: "transparent", borderWidth: 2, borderColor: colors.accent }
+                      : styles.blobEmpty,
+                ]}
+              />
               <Text style={styles.stripLabel}>{item.day}</Text>
             </View>
           ))}
@@ -294,6 +308,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 24,
     color: colors.textPrimary,
+    letterSpacing: -0.3,
   },
   date: {
     fontFamily: fonts.regular,
@@ -303,13 +318,17 @@ const styles = StyleSheet.create({
   },
   newEntryButton: {
     backgroundColor: colors.accent,
-    borderRadius: 24,
+    borderRadius: 20,
     paddingVertical: 20,
     alignItems: "center",
     marginTop: 32,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    overflow: "hidden",
   },
   newEntryButtonDone: {
     backgroundColor: colors.accent,
+    opacity: 0.85,
   },
   newEntryText: {
     fontFamily: fonts.bold,
@@ -318,15 +337,34 @@ const styles = StyleSheet.create({
   },
   quickEntryButton: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderRadius: 16,
     paddingVertical: 14,
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+    overflow: "hidden",
   },
   quickEntryText: {
     fontFamily: fonts.medium,
     fontSize: 15,
     color: colors.textPrimary,
+  },
+  buttonHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  buttonHighlightSubtle: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.07)",
   },
   streakRow: {
     marginTop: 24,
@@ -346,8 +384,19 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 20,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+    overflow: "hidden",
+  },
+  cardHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.07)",
   },
   summaryHeaderRow: {
     flexDirection: "row",
@@ -364,11 +413,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
+    opacity: 0.35,
     borderRadius: 3,
     backgroundColor: colors.textSecondary,
-    opacity: 0.4,
   },
   dotActive: {
     backgroundColor: colors.accent,
@@ -385,7 +434,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: 8,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   expandHint: {
     fontFamily: fonts.medium,
@@ -403,7 +452,12 @@ const styles = StyleSheet.create({
   blob: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: 10,
+  },
+  blobEmpty: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#2e3530",
   },
   stripLabel: {
     fontFamily: fonts.regular,

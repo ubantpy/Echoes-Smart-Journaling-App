@@ -77,11 +77,12 @@ export default function You() {
 
       <Animated.View entering={FadeInDown.duration(400).delay(80)}>
         <Text style={styles.sectionLabel}>Consistency</Text>
-        <View style={styles.statsCard}>
+        <View style={[styles.statsCard, { position: "relative" }]}>
+          <View style={styles.cardHighlight} />
           {[
-            { label: "Total entries",   value: String(totalEntries)      },
-            { label: "Current streak",  value: `${streak} days`          },
-            { label: "Longest streak",  value: `${longestStreak} days`   },
+            { label: "Total entries", value: String(totalEntries)},
+            { label: "Current streak", value: `${streak} days`},
+            { label: "Longest streak", value: `${longestStreak} days`},
           ].map((stat, i, arr) => (
             <View
               key={i}
@@ -116,6 +117,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 24,
     color: colors.textPrimary,
+    letterSpacing: -0.3,
   },
   settingsButton: {
     padding: 4,
@@ -135,6 +137,8 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#2e3530",
   },
   legend: {
     marginTop: 16,
@@ -165,6 +169,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
     paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+    overflow: "hidden",
+  },
+  cardHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.07)",
   },
   statRow: {
     flexDirection: "row",

@@ -2,9 +2,10 @@ import * as SQLite from "expo-sqlite";
 import {Entry, Summary, SentimentLabel} from "./types";
 import { formatDateString, getTodayDate } from "./dateUtils";
 
-const db = SQLite.openDatabaseSync("echoes.db");
+let db: SQLite.SQLiteDatabase;
 
 export function initDatabase() {
+  db = SQLite.openDatabaseSync("echoes.db");
   db.execSync(`
     CREATE TABLE IF NOT EXISTS entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,9 +121,9 @@ export function getEntriesInRange(start: string, end: string): Entry[] {
   return rows.map(mapRowToEntry);
 }
 
-// Count consecutive days ending today that have at least one entry
+/**Count consecutive days ending today that have at least one entry*/
 export function getStreak(): number {
-  // Fetch all non-deleted entry dates — newest first
+  // Fetch all non-deleted entry dates - newest first
   const rows = db.getAllSync<{ entry_date: string }>(
     `SELECT entry_date FROM entries WHERE is_deleted = 0 ORDER BY entry_date DESC`
   );
@@ -135,7 +136,13 @@ export function getStreak(): number {
   let streak = 0;
   const cursor = new Date(getTodayDate() + "T00:00:00");
 
-  // Walk backwards day-by-day from today; stop on the first gap
+  // If there's no entry today, start counting from yesterday,
+  // so the streak isn't broken until tomorrow
+  if (!dateSet.has(getTodayDate())) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  // Walk backwards day-by-day, stop on the first gap
   for (let i = 0; i < 365; i++) {
     if (dateSet.has(formatDateString(cursor))) {
       streak++;
@@ -215,8 +222,6 @@ function mapRowToEntry(row: any): Entry{
 }
 
 // Summaries
-
-
 export function insertSummary(params: {
     periodType: "weekly" | "monthly";
     periodStart: string;
