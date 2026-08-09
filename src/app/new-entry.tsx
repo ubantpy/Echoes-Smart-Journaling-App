@@ -6,18 +6,9 @@ import { colors, fonts } from "../constants/theme";
 import { insertEntry } from "@/lib/db";
 import { analyseSentiment } from "@/lib/sentiment";
 import { transcribeAudio } from "@/lib/transcribe";
+import { getTodayDate } from "@/lib/dateUtils";
 
 type Mode = "choose" | "recording" | "text";
-
-// Produce current YYYY-MM-DD date
-function getTodayDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  // Months in JS Date are 0-11, then make sure all months are 2 digit
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 // Converts total seconds into a m:ss display string e.g. 75 → "1:15"
 function formatTime(seconds: number): string {
@@ -93,13 +84,14 @@ const stopRecording = async () => {
   });
 
   setIsProcessing(false);
-  router.back();
+  router.dismiss();
 };
 
   // Save text entry with sentiment analysis
   const handleSave = async () => {
-    if (text.trim().length === 0) return;
+    if (text.trim().length == 0) return;
 
+    setIsProcessing(true);
     const sentiment = await analyseSentiment(text.trim());
 
     insertEntry({
@@ -109,16 +101,17 @@ const stopRecording = async () => {
       sentimentConfidence: sentiment?.confidence ?? undefined,
     });
 
-    router.back();
+    setIsProcessing(false);
+    router.dismiss();
   };
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.closeButton} onPress={() => router.back()}>
+      <Pressable style={styles.closeButton} onPress={() => router.dismiss()}>
         <Text style={styles.closeText}>✕</Text>
       </Pressable>
 
-      {mode === "choose" && (
+      {mode == "choose" && (
         <View style={styles.centerContent}>
           <Text style={styles.title}>New entry</Text>
           <Pressable
@@ -136,7 +129,7 @@ const stopRecording = async () => {
         </View>
       )}
 
-      {mode === "recording" && (
+      {mode == "recording" && (
         <View style={styles.centerContent}>
           {isProcessing ? (
             <>
@@ -156,7 +149,7 @@ const stopRecording = async () => {
         </View>
       )}
 
-      {mode === "text" && (
+      {mode == "text" && (
         <View style={styles.centerContent}>
           <Text style={styles.title}>Write your entry</Text>
           <TextInput
@@ -166,12 +159,19 @@ const stopRecording = async () => {
             placeholderTextColor={colors.textSecondary}
             value={text}
             onChangeText={setText}
+            editable={!isProcessing}
           />
           <Text style={styles.hintText}>
             {text.trim().split(/\s+/).filter(Boolean).length} / 500 words
           </Text>
-          <Pressable style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveText}>Save entry</Text>
+          <Pressable
+            style={[styles.saveButton, isProcessing && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={isProcessing}
+          >
+            <Text style={styles.saveText}>
+              {isProcessing ? "Saving…" : "Save entry"}
+            </Text>
           </Pressable>
         </View>
       )}

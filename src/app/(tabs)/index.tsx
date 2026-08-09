@@ -15,7 +15,6 @@ import { getTodayDate, getLastNDates } from "../../lib/dateUtils";
 import { getLastWeekRange, getLastMonthRange, formatPeriodLabel } from "../../lib/summaryUtils";
 import { generateSummariesIfNeeded } from "../../lib/generateSummaries";
 
-
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const moodColourMap: Record<string, string> = {
