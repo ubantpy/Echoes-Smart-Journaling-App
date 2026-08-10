@@ -138,7 +138,7 @@ function DayDetailSheet({ entry, translateY, onClose }: DaySheetProps) {
         {/* Main journal entry text */}
         <Text style={styles.sheetEntryText}>{entry.mainText}</Text>
 
-        {/* Quick notes - always shown; displays empty state when none exist */}
+        {/* Quick notes - always shown, displays empty state when none exist */}
         <View style={styles.quickSection}>
           <Text style={styles.quickSectionLabel}>
             Quick notes · {entry.additionalEntries.length}
@@ -275,7 +275,7 @@ interface YearCalendarProps {
   onDayPress: (entry: Entry) => void;
 }
 
-/** Full-year contribution grid (GitHub/Pixels style) - scrolls horizontally */
+/** Full-year contribution grid */
 function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProps) {
   // Recompute only when year changes
   const weeks = useMemo(() => buildYearColumns(year), [year]);
