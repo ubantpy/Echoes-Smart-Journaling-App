@@ -275,7 +275,7 @@ interface YearCalendarProps {
   onDayPress: (entry: Entry) => void;
 }
 
-/** Full-year contribution grid (GitHub/Pixels style) - scrolls horizontally */
+/** Full-year contribution grid */
 function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProps) {
   // Recompute only when year changes
   const weeks = useMemo(() => buildYearColumns(year), [year]);
