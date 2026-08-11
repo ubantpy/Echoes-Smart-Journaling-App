@@ -1,13 +1,7 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  Text,
-  View,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  Dimensions,
-} from "react-native";
+import { Text, View, StyleSheet, Pressable, ScrollView, 
+  Dimensions, PanResponder, BackHandler } from "react-native";
 import { useFocusEffect } from "expo-router";
 import Animated, {
   useSharedValue,
@@ -17,7 +11,7 @@ import Animated, {
   SharedValue,
 } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
-import { getEntriesInRange } from "../../lib/db";
+import { getEntriesInRange, getSummary } from "../../lib/db";
 import { Entry } from "../../lib/types";
 import { getTodayDate, formatDateString } from "../../lib/dateUtils";
 import { MONTH_NAMES,
@@ -33,9 +27,17 @@ import { getBestAndWorstDay,
   getMonthlyConsistency,
   scoreToLabel,
   getDayName, } from "../../lib/insightsUtils";
+import { SummaryCard, EchoCard, buildEchoCard } from "../../components/SummaryCard";
+import {
+  getLastNWeekRanges,
+  getLastNMonthRanges,
+  getAllWeekRangesFrom,
+  getAllMonthRangesFrom,
+  formatPeriodLabel,
+} from "../../lib/summaryUtils";
   
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Layout constants 
 const OUTER_PADDING = 24;
@@ -59,6 +61,8 @@ const YEAR_COL_WIDTH = YEAR_CELL + YEAR_GAP;
 
 /** Slide-up height of the day detail bottom sheet */
 const SHEET_HEIGHT = 500;
+/** Height of the "see all echoes" full-history sheet */
+const ALL_SHEET_HEIGHT = Math.round(SCREEN_HEIGHT * 0.88);
 
 // Static data 
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -364,6 +368,119 @@ interface PatternsSectionProps {
   month: number;
 }
 
+interface AllEchoesSheetProps {
+  echoView: "weekly" | "monthly";
+  entries: Entry[];
+  translateY: SharedValue<number>;
+  onClose: () => void;
+}
+
+/**
+ * Full-history sheet showing every weekly or monthly echo since the user's first entry.
+ * Slides up from bottom; each row shows the period label and summary preview.
+ */
+function AllEchoesSheet({ echoView, entries, translateY, onClose }: AllEchoesSheetProps) {
+  const insets = useSafeAreaInsets();
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  // Close sheet on Android hardware back button
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onClose]);
+
+  // Swipe down to dismiss - tracks drag distance and closes if dragged far enough
+  const panResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx),
+    onPanResponderMove: (_, g) => {
+      if (g.dy > 0) translateY.value = g.dy;
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dy > 80 || g.vy > 0.5) {
+        onClose();
+      } else {
+        translateY.value = withTiming(0, { duration: 200 });
+      }
+    },
+  });
+
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  // Derive all ranges going back to the user's first ever entry
+  const firstEntryDate = entries[0]?.entryDate;
+  const ranges = firstEntryDate
+    ? echoView === "weekly"
+      ? getAllWeekRangesFrom(firstEntryDate)
+      : getAllMonthRangesFrom(firstEntryDate)
+    : [];
+
+  return (
+    <Animated.View style={[styles.allSheet, sheetStyle]}>
+      {/* Handle bar - tap to close or drag down to dismiss */}
+      <View style={styles.sheetHandle} {...panResponder.panHandlers}>
+        <Pressable onPress={onClose}>
+          <View style={styles.handleBar} />
+        </Pressable>
+      </View>
+
+      <Text style={styles.allSheetTitle}>
+        All {echoView === "weekly" ? "weekly" : "monthly"} echoes
+      </Text>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.allSheetScroll,
+          { paddingBottom: 32 + insets.bottom },
+        ]}
+      >
+        {ranges.length === 0 ? (
+          <Text style={styles.allSheetEmpty}>No echoes yet - keep journaling!</Text>
+        ) : (
+          ranges.map(({ start, end }, i) => {
+            const summary = getSummary(echoView, start);
+            const label = formatPeriodLabel(echoView, start, echoView === "weekly" ? end : undefined);
+            const isExpanded = expandedIndex === i;
+            return (
+              <Pressable
+                key={i}
+                style={styles.allSheetRow}
+                onPress={() => summary && setExpandedIndex(isExpanded ? null : i)}
+              >
+                <View style={styles.cardHighlight} />
+                <View style={styles.allSheetRowHeader}>
+                  <Text style={styles.allSheetRowLabel}>{label}</Text>
+                  {summary && <View style={styles.allSheetDot} />}
+                </View>
+                {summary ? (
+                  <>
+                    <Text
+                      style={styles.allSheetRowText}
+                      numberOfLines={isExpanded ? undefined : 2}
+                    >
+                      {summary.summaryText}
+                    </Text>
+                    <Text style={styles.allSheetRowHint}>
+                      {isExpanded ? "Show less" : "Read more"}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.allSheetRowEmpty}>No echo for this period</Text>
+                )}
+              </Pressable>
+            );
+          })
+        )}
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
 /**
  * Displays computed mood patterns - best/worst day of week, monthly average,
  * and consistency. Shows a placeholder when fewer than 5 entries exist.
@@ -503,6 +620,62 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
   );
 }
 
+interface EchoesSectionProps {
+  entries: Entry[];
+  echoView: "weekly" | "monthly";
+  onViewChange: (v: "weekly" | "monthly") => void;
+  onSeeAll: () => void;
+}
+
+/**
+ * Shows the most recent weekly or monthly echoes as a carousel,
+ * with a "See all" button that opens the full history sheet.
+ */
+function EchoesSection({ entries, echoView, onViewChange, onSeeAll }: EchoesSectionProps) {
+  // Build cards for the most recent periods - real summaries or placeholders
+  const weekCards: EchoCard[] = getLastNWeekRanges(4).map(({ start, end }) =>
+    buildEchoCard("weekly", start, getSummary("weekly", start), end)
+  );
+  const monthCards: EchoCard[] = getLastNMonthRanges(3).map(({ start }) =>
+    buildEchoCard("monthly", start, getSummary("monthly", start))
+  );
+  const cards = echoView === "weekly" ? weekCards : monthCards;
+
+  return (
+    <View style={styles.echoesSection}>
+      {/* Header row: section label left, Weekly/Monthly toggle right */}
+      <View style={styles.echoesSectionHeader}>
+        <Text style={styles.sectionLabel}>Echoes</Text>
+        <View style={styles.echoPillRow}>
+          <Pressable
+            style={[styles.echoPill, echoView === "weekly" && styles.echoPillActive]}
+            onPress={() => onViewChange("weekly")}
+          >
+            <Text style={[styles.echoPillText, echoView === "weekly" && styles.echoPillTextActive]}>
+              Weekly
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.echoPill, echoView === "monthly" && styles.echoPillActive]}
+            onPress={() => onViewChange("monthly")}
+          >
+            <Text style={[styles.echoPillText, echoView === "monthly" && styles.echoPillTextActive]}>
+              Monthly
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <SummaryCard key={echoView} cards={cards} />
+
+      {/* Opens the full history bottom sheet */}
+      <Pressable style={styles.seeAllButton} onPress={onSeeAll}>
+        <Text style={styles.seeAllText}>See all echoes →</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // Insights screen 
 /** Insights screen - calendar view, patterns, and Echoes summaries */
 export default function Insights() {
@@ -525,6 +698,10 @@ export default function Insights() {
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetY = useSharedValue(SHEET_HEIGHT);
+
+  const [echoView, setEchoView] = useState<"weekly" | "monthly">("weekly");
+  const [allEchoesOpen, setAllEchoesOpen] = useState(false);
+  const allSheetY = useSharedValue(ALL_SHEET_HEIGHT);
 
   /** O(1) lookup map from YYYY-MM-DD → Entry, rebuilt only when entries change */
   const entryMap = useMemo(
@@ -553,6 +730,19 @@ export default function Insights() {
     sheetY.value = withTiming(SHEET_HEIGHT, { duration: 260 }, () => {
       runOnJS(setSheetOpen)(false);
       runOnJS(setSelectedEntry)(null);
+    });
+  }, []);
+
+  /** Opens the full-history echoes sheet */
+  const openAllEchoes = useCallback(() => {
+    setAllEchoesOpen(true);
+    allSheetY.value = withTiming(0, { duration: 300 });
+  }, []);
+
+  /** Closes the full-history echoes sheet */
+  const closeAllEchoes = useCallback(() => {
+    allSheetY.value = withTiming(ALL_SHEET_HEIGHT, { duration: 260 }, () => {
+      runOnJS(setAllEchoesOpen)(false);
     });
   }, []);
 
@@ -668,9 +858,16 @@ export default function Insights() {
           year={new Date(todayStr + "T00:00:00").getFullYear()}
           month={new Date(todayStr + "T00:00:00").getMonth()}
         />
+
+        <EchoesSection
+          entries={entries}
+          echoView={echoView}
+          onViewChange={setEchoView}
+          onSeeAll={openAllEchoes}
+        />
       </ScrollView>
 
-      {/* Semi-transparent backdrop - tapping it closes the sheet */}
+      {/* Backdrop for day detail sheet */}
       {sheetOpen && (
         <Pressable style={styles.backdrop} onPress={closeSheet} />
       )}
@@ -681,6 +878,21 @@ export default function Insights() {
           entry={selectedEntry}
           translateY={sheetY}
           onClose={closeSheet}
+        />
+      )}
+
+      {/* Backdrop for all-echoes sheet */}
+      {allEchoesOpen && (
+        <Pressable style={styles.backdrop} onPress={closeAllEchoes} />
+      )}
+
+      {/* Full echoes history sheet */}
+      {allEchoesOpen && (
+        <AllEchoesSheet
+          echoView={echoView}
+          entries={entries}
+          translateY={allSheetY}
+          onClose={closeAllEchoes}
         />
       )}
     </View>
@@ -871,6 +1083,7 @@ const styles = StyleSheet.create({
 
   // Bottom sheet 
   backdrop: {
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheet: {
@@ -1131,5 +1344,129 @@ const styles = StyleSheet.create({
   lockPipLast: {
     borderColor: colors.accent,
     borderWidth: 1.5,
+  },
+
+  // Echoes section
+  echoesSection: {
+    marginTop: 28,
+  },
+  echoesSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  echoPillRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+  },
+  echoPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  echoPillActive: {
+    backgroundColor: colors.accent,
+  },
+  echoPillText: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  echoPillTextActive: {
+    color: colors.background,
+  },
+  seeAllButton: {
+    marginTop: 12,
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  seeAllText: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.accent,
+  },
+
+  // All echoes sheet
+  allSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: ALL_SHEET_HEIGHT,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "#2e3530",
+    overflow: "hidden",
+  },
+  allSheetTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.textPrimary,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+  allSheetScroll: {
+    paddingHorizontal: 24,
+  },
+  allSheetEmpty: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 24,
+  },
+  allSheetRow: {
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+    overflow: "hidden",
+  },
+  allSheetRowHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  allSheetRowLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.accent,
+  },
+  allSheetDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+  },
+  allSheetRowText: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 19,
+  },
+  allSheetRowEmpty: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    opacity: 0.6,
+  },
+  allSheetRowHint: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.accent,
+    marginTop: 6,
   },
 });
