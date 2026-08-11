@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withRepeat,
+  runOnJS,
 } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
 import { getRecentEntries, getEntryForDate, getStreak, getSummary } from "../../lib/db";
@@ -15,6 +16,7 @@ import { getTodayDate, getLastNDates } from "../../lib/dateUtils";
 import { getLastWeekRange, getLastMonthRange, formatPeriodLabel } from "../../lib/summaryUtils";
 import { SummaryCard, EchoCard, buildEchoCard } from "../../components/SummaryCard";
 import { generateSummariesIfNeeded } from "../../lib/generateSummaries";
+import { DayDetailSheet, SHEET_HEIGHT } from "../../components/DayDetailSheet";
 import { MaterialIcons } from "@expo/vector-icons";
 import { moodColourMap, moodIconMap } from "../../lib/sentiment";
 
@@ -85,6 +87,24 @@ export default function Home() {
   const [hasEntryToday, setHasEntryToday] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
   const [echoCards, setEchoCards] = useState<EchoCard[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetY = useSharedValue(SHEET_HEIGHT);
+
+  /** Opens the day detail sheet for the tapped entry */
+  const openSheet = useCallback((entry: Entry) => {
+    setSelectedEntry(entry);
+    setSheetOpen(true);
+    sheetY.value = withTiming(0, { duration: 300 });
+  }, []);
+
+  /** Closes the day detail sheet */
+  const closeSheet = useCallback(() => {
+    sheetY.value = withTiming(SHEET_HEIGHT, { duration: 260 }, () => {
+      runOnJS(setSheetOpen)(false);
+      runOnJS(setSelectedEntry)(null);
+    });
+  }, []);
 
   useFocusEffect(
   useCallback(() => {
@@ -118,7 +138,8 @@ export default function Home() {
   });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.outerContainer}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Animated.View entering={FadeInDown.duration(400).delay(0)}>
         <Text style={styles.greeting}>{getGreeting()}</Text>
         <Text style={styles.date}>{getDisplayDate()}</Text>
@@ -168,33 +189,54 @@ export default function Home() {
       <Animated.View entering={FadeInDown.duration(400).delay(320)}>
         <Text style={styles.sectionLabel}>Recent days</Text>
         <View style={styles.stripRow}>
-          {recentDays.map((item, i) => (
-            <View key={i} style={styles.stripItem}>
-              {item.moodIcon && item.moodColor ? (
-                <View style={[styles.blob, 
-                { backgroundColor: item.moodColor, justifyContent: 'center', alignItems: 'center' }]}>
-                  <MaterialIcons 
-                    name={item.moodIcon} 
-                    size={24}
-                    color={colors.background}
+          {recentDays.map((item, i) => {
+            const entry = entryMap.get(getLastNDates(7)[i]);
+            return (
+              <Pressable
+                key={i}
+                style={styles.stripItem}
+                onPress={() => entry && openSheet(entry)}
+                disabled={!entry}
+              >
+                {item.moodIcon && item.moodColor ? (
+                  <View style={[styles.blob,
+                  { backgroundColor: item.moodColor, justifyContent: "center", alignItems: "center" }]}>
+                    <MaterialIcons
+                      name={item.moodIcon}
+                      size={24}
+                      color={colors.background}
+                    />
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.blob,
+                      item.day == "Today"
+                        ? { backgroundColor: "transparent", borderWidth: 2, borderColor: colors.accent }
+                        : styles.blobEmpty,
+                    ]}
                   />
-                </View>
-              ) : (
-                <View
-                  style={[
-                    styles.blob,
-                    item.day == "Today"
-                      ? { backgroundColor: "transparent", borderWidth: 2, borderColor: colors.accent }
-                      : styles.blobEmpty,
-                  ]}
-                />
-              )}
-              <Text style={styles.stripLabel}>{item.day}</Text>
-            </View>
-          ))}
+                )}
+                <Text style={styles.stripLabel}>{item.day}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </Animated.View>
     </ScrollView>
+
+      {sheetOpen && (
+        <Pressable style={styles.backdrop} onPress={closeSheet} />
+      )}
+
+      {selectedEntry && (
+        <DayDetailSheet
+          entry={selectedEntry}
+          translateY={sheetY}
+          onClose={closeSheet}
+        />
+      )}
+    </View>
   );
 }
 
@@ -311,5 +353,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     marginTop: 6,
+  },
+  outerContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
 });
