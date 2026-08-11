@@ -3,7 +3,7 @@ import { Text, View, StyleSheet, Pressable, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import { colors, fonts } from "../constants/theme";
-import { insertEntry } from "@/lib/db";
+import { insertEntry, getEntryForDate } from "@/lib/db";
 import { analyseSentiment } from "@/lib/sentiment";
 import { transcribeAudio } from "@/lib/transcribe";
 import { getTodayDate } from "@/lib/dateUtils";
@@ -22,7 +22,7 @@ export default function NewEntry() {
   const [mode, setMode] = useState<Mode>("choose");
   const [text, setText] = useState("");
 
-  // expo-audio hook — must be called at component level
+  // expo-audio hook - must be called at component level
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   // Recording state
@@ -31,12 +31,25 @@ export default function NewEntry() {
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
-
+  // Which date this entry is for. Default = today, can be switched to yesterday
+  const [targetDate, setTargetDate] = useState<string>(getTodayDate());
+  const [hasEntryYesterday, setHasEntryYesterday] = useState(false);
   // Clean up timer on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+  }, []);
+
+  /** Check on mount whether yesterday already has an entry */
+  useEffect(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const y = yesterday.getFullYear();
+    const m = String(yesterday.getMonth() + 1).padStart(2, "0");
+    const d = String(yesterday.getDate()).padStart(2, "0");
+    const yesterdayStr = `${y}-${m}-${d}`;
+    setHasEntryYesterday(!!getEntryForDate(yesterdayStr));
   }, []);
 
   // Asks for microphone permission and starts recording
@@ -77,7 +90,7 @@ const stopRecording = async () => {
   const sentiment = await analyseSentiment(transcribedText);
 
   insertEntry({
-    entryDate: getTodayDate(),
+    entryDate: targetDate,
     mainText: transcribedText,
     sentimentLabel: sentiment?.label ?? undefined,
     sentimentConfidence: sentiment?.confidence ?? undefined,
@@ -95,7 +108,7 @@ const stopRecording = async () => {
     const sentiment = await analyseSentiment(text.trim());
 
     insertEntry({
-      entryDate: getTodayDate(),
+      entryDate: targetDate,
       mainText: text.trim(),
       sentimentLabel: sentiment?.label ?? undefined,
       sentimentConfidence: sentiment?.confidence ?? undefined,
@@ -113,7 +126,10 @@ const stopRecording = async () => {
 
       {mode == "choose" && (
         <View style={styles.centerContent}>
-          <Text style={styles.title}>New entry</Text>
+          {/* Show which date the entry is for when not today */}
+          <Text style={styles.title}>
+            {targetDate === getTodayDate() ? "New entry" : "Yesterday's entry"}
+          </Text>
           <Pressable
             style={styles.optionButton}
             onPress={() => { setMode("recording"); startRecording(); }}
@@ -126,6 +142,33 @@ const stopRecording = async () => {
           >
             <Text style={styles.optionText}>Write instead</Text>
           </Pressable>
+
+          {/* Toggle between today and yesterday - shown at the bottom of the screen */}
+          {!hasEntryYesterday && (
+          <Pressable
+            style={styles.yesterdayButton}
+            onPress={() => {
+              if (targetDate === getTodayDate()) {
+                // Switch to yesterday
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const y = yesterday.getFullYear();
+                const m = String(yesterday.getMonth() + 1).padStart(2, "0");
+                const d = String(yesterday.getDate()).padStart(2, "0");
+                setTargetDate(`${y}-${m}-${d}`);
+              } else {
+                // Switch back to today
+                setTargetDate(getTodayDate());
+              }
+            }}
+          >
+            <Text style={styles.yesterdayText}>
+              {targetDate === getTodayDate()
+                ? "Adding for yesterday instead?"
+                : "← Back to today's entry"}
+            </Text>
+          </Pressable>
+          )}
         </View>
       )}
 
@@ -257,6 +300,21 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     textAlignVertical: "top",
   },
+
+  yesterdayButton: {
+    position: "absolute",
+    bottom: 48,
+    alignSelf: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  yesterdayText: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.accent,
+    textDecorationLine: "underline",
+  },
+
   saveButton: {
     backgroundColor: colors.accent,
     borderRadius: 24,

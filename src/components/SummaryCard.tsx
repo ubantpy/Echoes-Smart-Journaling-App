@@ -9,7 +9,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 /** Number of lines shown when a card is collapsed */
 const COLLAPSED_LINES = 3;
 
-/** Defines what each echo card shows — real summary or placeholder */
+/** Defines what each echo card shows - real summary or placeholder */
 export type EchoCard = {
   label: string;
   title: string;

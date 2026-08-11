@@ -37,6 +37,7 @@ import {
 } from "../../lib/summaryUtils";
 import { MaterialIcons } from "@expo/vector-icons";
 import { moodColourMap, moodIconMap } from "../../lib/sentiment";
+import { DayDetailSheet, SHEET_HEIGHT } from "../../components/DayDetailSheet";
   
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -61,8 +62,6 @@ const YEAR_CELL = Math.floor((AVAILABLE_WIDTH - (NUM_YEAR_COLS - 1) * YEAR_GAP) 
 /** Full column stride including gap */
 const YEAR_COL_WIDTH = YEAR_CELL + YEAR_GAP;
 
-/** Slide-up height of the day detail bottom sheet */
-const SHEET_HEIGHT = 500;
 /** Height of the "see all echoes" full-history sheet */
 const ALL_SHEET_HEIGHT = Math.round(SCREEN_HEIGHT * 0.88);
 
@@ -92,86 +91,6 @@ function getMonthLabelPositions(
   });
 
   return positions;
-}
-
-// DayDetailSheet 
-interface DaySheetProps {
-  entry: Entry;
-  translateY: SharedValue<number>;
-  onClose: () => void;
-}
-
-/**
- * Bottom sheet that slides up from the bottom to show a day's full entry detail.
- * Tap the handle bar or the backdrop (rendered in the parent) to dismiss.
- * Swipe-to-dismiss can be wired in later via react-native-gesture-handler.
- */
-function DayDetailSheet({ entry, translateY, onClose }: DaySheetProps) {
-    const insets = useSafeAreaInsets();
-    const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  const colour = getMoodColour(entry);
-  const moodLabel = entry.sentimentLabel ? MOOD_LABELS[entry.sentimentLabel] : null;
-  const iconName = entry.sentimentLabel ? moodIconMap[entry.sentimentLabel] : null;
-
-  return (
-    <Animated.View style={[styles.sheet, sheetStyle]}>
-      {/* Handle bar - tapping it closes the sheet */}
-      <Pressable style={styles.sheetHandle} onPress={onClose}>
-        <View style={styles.handleBar} />
-      </Pressable>
-
-      <ScrollView
-        style={styles.sheetScroll}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.sheetScrollContent,
-          { paddingBottom: 32 + insets.bottom },
-        ]}
-      >
-        {/* Date heading and mood badge */}
-        <View style={styles.sheetHeaderRow}>
-          <Text style={styles.sheetDate}>{formatLongDate(entry.entryDate)}</Text>
-          {moodLabel && colour && iconName && (
-            <View style={[styles.moodBadge, 
-            { backgroundColor: colour, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-              <MaterialIcons name={iconName} size={16} color={colors.background} />
-              <Text style={[styles.moodBadgeText, { color: colors.background }]}>{moodLabel}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Shown when the sentiment model was not confident */}
-        {entry.lowConfidence && (
-          <Text style={styles.lowConfidenceNote}>
-            Confidence low - sentiment may be inaccurate
-          </Text>
-        )}
-
-        {/* Main journal entry text */}
-        <Text style={styles.sheetEntryText}>{entry.mainText}</Text>
-
-        {/* Quick notes - always shown, displays empty state when none exist */}
-        <View style={styles.quickSection}>
-          <Text style={styles.quickSectionLabel}>
-            Quick notes · {entry.additionalEntries.length}
-          </Text>
-          {entry.additionalEntries.length > 0 ? (
-            entry.additionalEntries.map((note, i) => (
-              <View key={i} style={styles.quickNoteRow}>
-                <Text style={styles.quickNoteIndex}>{i + 1}</Text>
-                <Text style={styles.quickNoteText}>{note}</Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.quickNoteEmpty}>No quick notes for this day.</Text>
-          )}
-        </View>
-      </ScrollView>
-    </Animated.View>
-  );
 }
 
 // MonthCalendar
@@ -373,15 +292,21 @@ function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProp
 
 interface PatternCardProps {
   title: string;
+  locked?: boolean;
   children: React.ReactNode;
 }
 
-/** Single card in the patterns grid */
-function PatternCard({ title, children }: PatternCardProps) {
+/** Single card in the patterns grid - shows a lock badge when data is insufficient */
+function PatternCard({ title, locked, children }: PatternCardProps) {
   return (
     <View style={styles.patternCard}>
       <View style={styles.cardHighlight} />
-      <Text style={styles.patternCardTitle}>{title}</Text>
+      <View style={styles.patternCardHeader}>
+        <Text style={styles.patternCardTitle}>{title}</Text>
+        {locked && (
+          <MaterialIcons name="lock" size={13} color={colors.mood.veryLow} style={{ opacity: 0.5 }} />
+        )}
+      </View>
       {children}
     </View>
   );
@@ -439,7 +364,7 @@ function AllEchoesSheet({ echoView, entries, translateY, onClose }: AllEchoesShe
   // Derive all ranges going back to the user's first ever entry
   const firstEntryDate = entries[0]?.entryDate;
   const ranges = firstEntryDate
-    ? echoView === "weekly"
+    ? echoView == "weekly"
       ? getAllWeekRangesFrom(firstEntryDate)
       : getAllMonthRangesFrom(firstEntryDate)
     : [];
@@ -454,23 +379,22 @@ function AllEchoesSheet({ echoView, entries, translateY, onClose }: AllEchoesShe
       </View>
 
       <Text style={styles.allSheetTitle}>
-        All {echoView === "weekly" ? "weekly" : "monthly"} echoes
+        All {echoView == "weekly" ? "weekly" : "monthly"} echoes
       </Text>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.allSheetScroll,
-          { paddingBottom: 32 + insets.bottom },
         ]}
       >
-        {ranges.length === 0 ? (
+        {ranges.length == 0 ? (
           <Text style={styles.allSheetEmpty}>No echoes yet - keep journaling!</Text>
         ) : (
           ranges.map(({ start, end }, i) => {
             const summary = getSummary(echoView, start);
-            const label = formatPeriodLabel(echoView, start, echoView === "weekly" ? end : undefined);
-            const isExpanded = expandedIndex === i;
+            const label = formatPeriodLabel(echoView, start, echoView == "weekly" ? end : undefined);
+            const isExpanded = expandedIndex == i;
             return (
               <Pressable
                 key={i}
@@ -566,7 +490,7 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
                 style={[
                   styles.lockPip,
                   i < scoredCount ? styles.lockPipFilled : styles.lockPipEmpty,
-                  i === 4 && scoredCount < 5 && styles.lockPipLast,
+                  i == 4 && scoredCount < 5 && styles.lockPipLast,
                 ]}
               />
             ))}
@@ -576,42 +500,39 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
         <View style={styles.patternGrid}>
 
           {/* Best day of week */}
-          <PatternCard title="Best day">
+          <PatternCard title="Best day" locked={!dayStats}>
             {dayStats ? (
               <>
                 <Text style={styles.patternHighlight}>{getDayName(dayStats.best)}</Text>
                 <Text style={styles.patternSub}>tends to be your best day</Text>
               </>
             ) : (
-              <Text style={styles.patternPending}>
-                Journal on more days to unlock this
-              </Text>
+              <Text style={styles.patternPending}>Journal on more days to unlock</Text>
             )}
           </PatternCard>
 
           {/* Worst day of week */}
-          <PatternCard title="Toughest day">
+          <PatternCard title="Toughest day" locked={!dayStats}>
             {dayStats ? (
               <>
                 <Text style={styles.patternHighlight}>{getDayName(dayStats.worst)}</Text>
                 <Text style={styles.patternSub}>tends to be harder</Text>
               </>
             ) : (
-              <Text style={styles.patternPending}>
-                Journal on more days to unlock this
-              </Text>
+              <Text style={styles.patternPending}>Journal on more days to unlock</Text>
             )}
           </PatternCard>
 
-          {/* This month's average mood */}
+          {/* This month's average mood - left accent bar with large mood label */}
           <PatternCard title="This month">
             {avgLabel && avgColour && avgText ? (
-              <>
-                <View style={[styles.moodChip, { backgroundColor: avgColour }]}>
-                  <Text style={styles.moodChipText}>{avgText}</Text>
+              <View style={styles.monthMoodRow}>
+                <View style={[styles.monthMoodBar, { backgroundColor: avgColour }]} />
+                <View>
+                  <Text style={[styles.patternHighlight, { color: avgColour }]}>{avgText}</Text>
+                  <Text style={styles.patternSub}>average mood</Text>
                 </View>
-                <Text style={styles.patternSub}>average mood</Text>
-              </>
+              </View>
             ) : (
               <Text style={styles.patternPending}>No entries this month yet</Text>
             )}
@@ -664,7 +585,7 @@ function EchoesSection({ entries, echoView, onViewChange, onSeeAll }: EchoesSect
   const monthCards: EchoCard[] = getLastNMonthRanges(3).map(({ start }) =>
     buildEchoCard("monthly", start, getSummary("monthly", start))
   );
-  const cards = echoView === "weekly" ? weekCards : monthCards;
+  const cards = echoView == "weekly" ? weekCards : monthCards;
 
   return (
     <View style={styles.echoesSection}>
@@ -673,18 +594,18 @@ function EchoesSection({ entries, echoView, onViewChange, onSeeAll }: EchoesSect
         <Text style={styles.sectionLabel}>Echoes</Text>
         <View style={styles.echoPillRow}>
           <Pressable
-            style={[styles.echoPill, echoView === "weekly" && styles.echoPillActive]}
+            style={[styles.echoPill, echoView == "weekly" && styles.echoPillActive]}
             onPress={() => onViewChange("weekly")}
           >
-            <Text style={[styles.echoPillText, echoView === "weekly" && styles.echoPillTextActive]}>
+            <Text style={[styles.echoPillText, echoView == "weekly" && styles.echoPillTextActive]}>
               Weekly
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.echoPill, echoView === "monthly" && styles.echoPillActive]}
+            style={[styles.echoPill, echoView == "monthly" && styles.echoPillActive]}
             onPress={() => onViewChange("monthly")}
           >
-            <Text style={[styles.echoPillText, echoView === "monthly" && styles.echoPillTextActive]}>
+            <Text style={[styles.echoPillText, echoView == "monthly" && styles.echoPillTextActive]}>
               Monthly
             </Text>
           </Pressable>
@@ -884,12 +805,14 @@ export default function Insights() {
           month={new Date(todayStr + "T00:00:00").getMonth()}
         />
 
-        <EchoesSection
-          entries={entries}
-          echoView={echoView}
-          onViewChange={setEchoView}
-          onSeeAll={openAllEchoes}
-        />
+        {entries.length > 0 && (
+          <EchoesSection
+            entries={entries}
+            echoView={echoView}
+            onViewChange={setEchoView}
+            onSeeAll={openAllEchoes}
+          />
+        )}
       </ScrollView>
 
       {/* Backdrop for day detail sheet */}
@@ -903,6 +826,11 @@ export default function Insights() {
           entry={selectedEntry}
           translateY={sheetY}
           onClose={closeSheet}
+          onMoodChange={() => {
+            // Refresh entries so the calendar blob updates immediately
+            const rangeStart = `${currentYear - 1}-01-01`;
+            setEntries(getEntriesInRange(rangeStart, todayStr));
+          }}
         />
       )}
 
@@ -1140,7 +1068,7 @@ const styles = StyleSheet.create({
   },
   sheetScrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 64,
+    paddingBottom: 32,
   },
   sheetHeaderRow: {
     flexDirection: "row",
@@ -1313,10 +1241,27 @@ const styles = StyleSheet.create({
     minHeight: 110,
   },
   patternCardTitle: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.textPrimary,
+    opacity: 0.7,
+  },
+  patternCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 10,
+  },
+  monthMoodRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  monthMoodBar: {
+    width: 3,
+    height: 36,
+    borderRadius: 2,
   },
   patternHighlight: {
     fontFamily: fonts.bold,

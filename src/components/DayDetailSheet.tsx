@@ -6,7 +6,10 @@ import Animated, {
 } from "react-native-reanimated";
 import { colors, fonts } from "../constants/theme";
 import { Entry } from "../lib/types";
-import { getMoodColour, formatLongDate, MOOD_LABELS } from "../lib/calendarUtils";
+import { getMoodColour, formatLongDate, MOOD_COLOURS, MOOD_LABELS } from "../lib/calendarUtils";
+import { useState } from "react";
+import { SentimentLabel } from "../lib/types";
+import { updateEntrySentiment } from "../lib/db";
 
 const SHEET_HEIGHT = 500;
 export { SHEET_HEIGHT };
@@ -15,24 +18,39 @@ interface DayDetailSheetProps {
   entry: Entry;
   translateY: SharedValue<number>;
   onClose: () => void;
+  /** Called after the user manually overrides the mood so the parent can refresh */
+  onMoodChange?: (entryDate: string, label: SentimentLabel) => void;
 }
 
 /**
  * Bottom sheet that slides up from the bottom to show a day's full entry detail.
  * Tap the handle bar or the backdrop to dismiss.
  */
-export function DayDetailSheet({ entry, translateY, onClose }: DayDetailSheetProps) {
+export function DayDetailSheet({ entry, translateY, onClose, onMoodChange }: DayDetailSheetProps) {
   const insets = useSafeAreaInsets();
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
 
-  const colour = getMoodColour(entry);
-  const moodLabel = entry.sentimentLabel ? MOOD_LABELS[entry.sentimentLabel] : null;
+  // Local override so the sheet updates immediately without needing a full reload
+  const [overrideLabel, setOverrideLabel] = useState<SentimentLabel | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const activeLabel = overrideLabel ?? entry.sentimentLabel;
+  const colour = activeLabel ? MOOD_COLOURS[activeLabel] : null;
+  const moodLabel = activeLabel ? MOOD_LABELS[activeLabel] : null;
+
+  /** Saves the manually selected mood to SQLite and updates local state */
+  const handleMoodSelect = (label: SentimentLabel) => {
+    updateEntrySentiment(entry.entryDate, label);
+    setOverrideLabel(label);
+    setPickerOpen(false);
+    onMoodChange?.(entry.entryDate, label);
+  };
 
   return (
     <Animated.View style={[styles.sheet, sheetStyle]}>
-      {/* Handle bar — tapping closes the sheet */}
+      {/* Handle bar - tapping closes the sheet */}
       <Pressable style={styles.sheetHandle} onPress={onClose}>
         <View style={styles.handleBar} />
       </Pressable>
@@ -45,27 +63,52 @@ export function DayDetailSheet({ entry, translateY, onClose }: DayDetailSheetPro
           { paddingBottom: 32 + insets.bottom },
         ]}
       >
-        {/* Date heading and mood badge */}
+        {/* Date heading and mood badge - badge is tappable to open mood picker */}
         <View style={styles.sheetHeaderRow}>
           <Text style={styles.sheetDate}>{formatLongDate(entry.entryDate)}</Text>
           {moodLabel && colour && (
-            <View style={[styles.moodBadge, { backgroundColor: colour }]}>
-              <Text style={styles.moodBadgeText}>{moodLabel}</Text>
-            </View>
+            <Pressable
+            style={[styles.moodBadge, { backgroundColor: colour }]}
+            onPress={() => (entry.lowConfidence && !overrideLabel) || overrideLabel ? setPickerOpen((o) => !o) : null}
+            disabled={!entry.lowConfidence && !overrideLabel}
+          >
+            <Text style={styles.moodBadgeText}>
+              {moodLabel}{(entry.lowConfidence || overrideLabel) ? " ✎" : ""}
+            </Text>
+          </Pressable>
           )}
         </View>
 
-        {/* Shown when the sentiment model was not confident */}
+        {/* Mood picker - inline row of 5 options, shown when badge is tapped */}
+        {pickerOpen && (entry.lowConfidence || overrideLabel) && (
+          <View style={styles.moodPicker}>
+            {(["very_positive", "positive", "neutral", "negative", "very_negative"] as SentimentLabel[]).map((label) => (
+              <Pressable
+                key={label}
+                style={[
+                  styles.moodPickerOption,
+                  { backgroundColor: MOOD_COLOURS[label] },
+                  activeLabel === label && styles.moodPickerOptionActive,
+                ]}
+                onPress={() => handleMoodSelect(label)}
+              >
+                <Text style={styles.moodPickerText}>{MOOD_LABELS[label]}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {/* Low confidence note - updated to mention the user can edit */}
         {entry.lowConfidence && (
           <Text style={styles.lowConfidenceNote}>
-            Confidence low — sentiment may be inaccurate
+            Confidence low - tap the mood badge to correct it
           </Text>
         )}
 
         {/* Main journal entry text */}
         <Text style={styles.sheetEntryText}>{entry.mainText}</Text>
 
-        {/* Quick notes — always shown; displays empty state when none exist */}
+        {/* Quick notes - always shown; displays empty state when none exist */}
         <View style={styles.quickSection}>
           <Text style={styles.quickSectionLabel}>
             Quick notes · {entry.additionalEntries.length}
@@ -189,5 +232,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     fontStyle: "italic",
+  },
+  moodPicker: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+  },
+  moodPickerOption: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    opacity: 0.75,
+  },
+  moodPickerOptionActive: {
+    opacity: 1,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.4)",
+  },
+  moodPickerText: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.background,
   },
 });

@@ -234,6 +234,10 @@ export default function Home() {
           entry={selectedEntry}
           translateY={sheetY}
           onClose={closeSheet}
+          onMoodChange={() => {
+            // Refresh entries so the blob colour updates on return
+            setEntries(getRecentEntries(7));
+          }}
         />
       )}
     </View>

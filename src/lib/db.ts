@@ -168,6 +168,14 @@ export function getMoodDistribution(): Record<string, number> {
   return result;
 }
 
+/** Updates only the sentiment label on an existing entry, clearing low confidence flag */
+export function updateEntrySentiment(entryDate: string, label: SentimentLabel): void {
+  db.runSync(
+    `UPDATE entries SET sentiment_label = ? WHERE entry_date = ?`,
+    [label, entryDate]
+  );
+}
+
 /** Returns total number of non-deleted entries*/
 export function getTotalEntries(): number {
   const row = db.getFirstSync<{ count: number }>(
