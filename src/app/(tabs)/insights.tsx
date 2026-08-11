@@ -28,6 +28,12 @@ import { MONTH_NAMES,
   buildMonthGrid,
   buildYearColumns,
   formatLongDate, } from "../../lib/calendarUtils";
+import { getBestAndWorstDay,
+  getMonthlyAverage,
+  getMonthlyConsistency,
+  scoreToLabel,
+  getDayName, } from "../../lib/insightsUtils";
+  
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -336,8 +342,168 @@ function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProp
   );
 }
 
-// Insights screen 
+interface PatternCardProps {
+  title: string;
+  children: React.ReactNode;
+}
 
+/** Single card in the patterns grid */
+function PatternCard({ title, children }: PatternCardProps) {
+  return (
+    <View style={styles.patternCard}>
+      <View style={styles.cardHighlight} />
+      <Text style={styles.patternCardTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+interface PatternsSectionProps {
+  entries: Entry[];
+  year: number;
+  month: number;
+}
+
+/**
+ * Displays computed mood patterns - best/worst day of week, monthly average,
+ * and consistency. Shows a placeholder when fewer than 5 entries exist.
+ */
+function PatternsSection({ entries, year, month }: PatternsSectionProps) {
+  const todayDate = new Date();
+
+  const scoredCount = entries.filter((e) => e.sentimentLabel != null).length;
+  const hasEnoughData = scoredCount >= 5;
+
+  const dayStats = getBestAndWorstDay(entries);
+  const monthlyAvg = getMonthlyAverage(entries, year, month);
+  const consistency = getMonthlyConsistency(entries, year, month);
+
+  const avgLabel = monthlyAvg != null ? scoreToLabel(monthlyAvg) : null;
+  const avgColour = avgLabel ? MOOD_COLOURS[avgLabel] : null;
+  const avgText = avgLabel ? MOOD_LABELS[avgLabel] : null;
+
+  return (
+    <View style={styles.patternsSection}>
+      <Text style={styles.sectionLabel}>Patterns</Text>
+
+      {/* Sparse state - shown until the user has enough entries for meaningful insights */}
+      {!hasEnoughData ? (
+        <View style={styles.patternPlaceholder}>
+          <View style={styles.cardHighlight} />
+
+          {/* Lock icon */}
+          <Text style={styles.lockIcon}>🔒</Text>
+
+          <Text style={styles.patternPlaceholderTitle}>Patterns locked</Text>
+          <Text style={styles.patternPlaceholderText}>
+            Journal{" "}
+            <Text style={{ fontFamily: fonts.bold, color: colors.textPrimary }}>
+              {5 - scoredCount} more {5 - scoredCount == 1 ? "day" : "days"}
+            </Text>
+            {" "}to unlock insights about your mood, your best days, and how consistent you've been.
+          </Text>
+
+          {/* Progress bar */}
+          <View style={styles.lockProgressRow}>
+            <View style={styles.lockProgressTrack}>
+              <View
+                style={[
+                  styles.lockProgressFill,
+                  { width: `${(scoredCount / 5) * 100}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.lockProgressLabel}>{scoredCount} / 5</Text>
+          </View>
+
+          {/* Individual pip dots showing progress */}
+          <View style={styles.lockPips}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.lockPip,
+                  i < scoredCount ? styles.lockPipFilled : styles.lockPipEmpty,
+                  i === 4 && scoredCount < 5 && styles.lockPipLast,
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      ) : (
+        <View style={styles.patternGrid}>
+
+          {/* Best day of week */}
+          <PatternCard title="Best day">
+            {dayStats ? (
+              <>
+                <Text style={styles.patternHighlight}>{getDayName(dayStats.best)}</Text>
+                <Text style={styles.patternSub}>tends to be your best day</Text>
+              </>
+            ) : (
+              <Text style={styles.patternPending}>
+                Journal on more days to unlock this
+              </Text>
+            )}
+          </PatternCard>
+
+          {/* Worst day of week */}
+          <PatternCard title="Toughest day">
+            {dayStats ? (
+              <>
+                <Text style={styles.patternHighlight}>{getDayName(dayStats.worst)}</Text>
+                <Text style={styles.patternSub}>tends to be harder</Text>
+              </>
+            ) : (
+              <Text style={styles.patternPending}>
+                Journal on more days to unlock this
+              </Text>
+            )}
+          </PatternCard>
+
+          {/* This month's average mood */}
+          <PatternCard title="This month">
+            {avgLabel && avgColour && avgText ? (
+              <>
+                <View style={[styles.moodChip, { backgroundColor: avgColour }]}>
+                  <Text style={styles.moodChipText}>{avgText}</Text>
+                </View>
+                <Text style={styles.patternSub}>average mood</Text>
+              </>
+            ) : (
+              <Text style={styles.patternPending}>No entries this month yet</Text>
+            )}
+          </PatternCard>
+
+          {/* Consistency this month */}
+          <PatternCard title="Consistency">
+            <Text style={styles.patternHighlight}>
+              {consistency.journaled}
+              <Text style={styles.patternHighlightSmall}> / {consistency.total}</Text>
+            </Text>
+            <Text style={styles.patternSub}>days journaled this month</Text>
+            {/* Visual bar showing journaling consistency as a filled proportion */}
+            <View style={styles.consistencyBarTrack}>
+              <View
+                style={[
+                  styles.consistencyBarFill,
+                  {
+                    width: `${Math.round(
+                      (consistency.journaled / Math.max(consistency.total, 1)) * 100
+                    )}%`,
+                  },
+                ]}
+              />
+            </View>
+          </PatternCard>
+
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Insights screen 
 /** Insights screen - calendar view, patterns, and Echoes summaries */
 export default function Insights() {
   const todayStr = getTodayDate();
@@ -497,7 +663,11 @@ export default function Insights() {
           )}
         </View>
 
-        {/* Patterns and Echoes sections added in subsequent steps */}
+        <PatternsSection
+          entries={entries}
+          year={new Date(todayStr + "T00:00:00").getFullYear()}
+          month={new Date(todayStr + "T00:00:00").getMonth()}
+        />
       </ScrollView>
 
       {/* Semi-transparent backdrop - tapping it closes the sheet */}
@@ -701,7 +871,6 @@ const styles = StyleSheet.create({
 
   // Bottom sheet 
   backdrop: {
-    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheet: {
@@ -806,5 +975,161 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     fontStyle: "italic",
+  },
+
+  // Patterns section
+  patternsSection: {
+    marginTop: 28,
+  },
+  sectionLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 12,
+  },
+  patternPlaceholder: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+    overflow: "hidden",
+    alignItems: "center",
+  },
+  lockIcon: {
+    fontSize: 32,
+    marginBottom: 12,
+    opacity: 0.6,
+  },
+  patternPlaceholderTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginBottom: 8,
+    letterSpacing: -0.2,
+  },
+  patternPlaceholderText: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  lockProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    marginBottom: 12,
+  },
+  lockProgressTrack: {
+    flex: 1,
+    height: 4,
+    backgroundColor: "#2e3530",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  lockProgressFill: {
+    height: 4,
+    backgroundColor: colors.accent,
+    borderRadius: 2,
+  },
+  lockProgressLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.textSecondary,
+    width: 28,
+    textAlign: "right",
+  },
+  lockPips: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  lockPip: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  lockPipFilled: {
+    backgroundColor: colors.accent,
+  },
+  lockPipEmpty: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#2e3530",
+  },
+  patternGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  patternCard: {
+    width: "47.5%",
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+    overflow: "hidden",
+    minHeight: 110,
+  },
+  patternCardTitle: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 10,
+  },
+  patternHighlight: {
+    fontFamily: fonts.bold,
+    fontSize: 20,
+    color: colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  patternHighlightSmall: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  patternSub: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  patternPending: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+  moodChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginBottom: 4,
+  },
+  moodChipText: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.background,
+  },
+  consistencyBarTrack: {
+    height: 4,
+    backgroundColor: "#2e3530",
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: "hidden",
+  },
+  consistencyBarFill: {
+    height: 4,
+    backgroundColor: colors.accent,
+    borderRadius: 2,
+  },
+  lockPipLast: {
+    borderColor: colors.accent,
+    borderWidth: 1.5,
   },
 });
