@@ -35,6 +35,8 @@ import {
   getAllMonthRangesFrom,
   formatPeriodLabel,
 } from "../../lib/summaryUtils";
+import { MaterialIcons } from "@expo/vector-icons";
+import { moodColourMap, moodIconMap } from "../../lib/sentiment";
   
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -112,6 +114,7 @@ function DayDetailSheet({ entry, translateY, onClose }: DaySheetProps) {
 
   const colour = getMoodColour(entry);
   const moodLabel = entry.sentimentLabel ? MOOD_LABELS[entry.sentimentLabel] : null;
+  const iconName = entry.sentimentLabel ? moodIconMap[entry.sentimentLabel] : null;
 
   return (
     <Animated.View style={[styles.sheet, sheetStyle]}>
@@ -131,9 +134,11 @@ function DayDetailSheet({ entry, translateY, onClose }: DaySheetProps) {
         {/* Date heading and mood badge */}
         <View style={styles.sheetHeaderRow}>
           <Text style={styles.sheetDate}>{formatLongDate(entry.entryDate)}</Text>
-          {moodLabel && colour && (
-            <View style={[styles.moodBadge, { backgroundColor: colour }]}>
-              <Text style={styles.moodBadgeText}>{moodLabel}</Text>
+          {moodLabel && colour && iconName && (
+            <View style={[styles.moodBadge, 
+            { backgroundColor: colour, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              <MaterialIcons name={iconName} size={16} color={colors.background} />
+              <Text style={[styles.moodBadgeText, { color: colors.background }]}>{moodLabel}</Text>
             </View>
           )}
         </View>
@@ -237,6 +242,7 @@ function MonthCalendar({
                 const colour = getMoodColour(entry);
                 const isToday = dateStr == todayStr;
                 const isFuture = dateStr > todayStr;
+                const iconName = entry && entry.sentimentLabel ? moodIconMap[entry.sentimentLabel] : null;
 
                 return (
                   <Pressable
@@ -245,17 +251,27 @@ function MonthCalendar({
                     onPress={() => entry && onDayPress(entry)}
                     disabled={!entry || isFuture}
                   >
-                    <View
-                      style={[
-                        styles.monthBlob,
-                        colour
-                          ? { backgroundColor: colour }
-                          : isToday
-                          ? { borderWidth: 2, borderColor: colors.accent }
-                          : { borderWidth: 1, borderColor: "#2e3530" },
-                        isFuture && styles.dimmed,
-                      ]}
-                    />
+                    {iconName && colour ? (
+                      <View style={[styles.monthBlob, 
+                      { backgroundColor: colour, justifyContent: 'center', alignItems: 'center' }, 
+                      isFuture && styles.dimmed]}>
+                        <MaterialIcons 
+                          name={iconName} 
+                          size={20}
+                          color={colors.background} 
+                        />
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.monthBlob,
+                          isToday
+                            ? { backgroundColor: "transparent", borderWidth: 2, borderColor: colors.accent }
+                            : { backgroundColor: "transparent", borderWidth: 1, borderColor: "#2e3530" },
+                          isFuture && styles.dimmed,
+                        ]}
+                      />
+                    )}
                     <Text
                       style={[
                         styles.dayNumber,
@@ -316,6 +332,7 @@ function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProp
               const colour = getMoodColour(entry);
               const isToday = dateStr == todayStr;
               const isFuture = dateStr > todayStr;
+              const iconName = entry && entry.sentimentLabel ? moodIconMap[entry.sentimentLabel] : null;
 
               return (
                 <Pressable
@@ -324,18 +341,26 @@ function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProp
                   onPress={() => entry && onDayPress(entry)}
                   disabled={!entry || isFuture}
                 >
+                  {iconName && colour ? (
+                  <View style={[styles.yearDot, { backgroundColor: colour, justifyContent: 'center', alignItems: 'center' }]}>
+                    <MaterialIcons 
+                      name={iconName} 
+                      size={16}
+                      color={colors.background} 
+                    />
+                  </View>
+                ) : (
                   <View
                     style={[
                       styles.yearDot,
-                      colour
-                        ? { backgroundColor: colour }
-                        : isToday
-                        ? { borderWidth: 1.5, borderColor: colors.accent }
+                      isToday
+                        ? { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.accent }
                         : isFuture
-                        ? { borderWidth: 1, borderColor: "#232826" }
-                        : { borderWidth: 1, borderColor: "#2e3530" },
+                        ? { backgroundColor: "transparent", borderWidth: 1, borderColor: "#232826" }
+                        : { backgroundColor: "transparent", borderWidth: 1, borderColor: "#2e3530" },
                     ]}
                   />
+                )}
                 </Pressable>
               );
             })}

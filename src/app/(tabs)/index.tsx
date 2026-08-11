@@ -15,16 +15,11 @@ import { getTodayDate, getLastNDates } from "../../lib/dateUtils";
 import { getLastWeekRange, getLastMonthRange, formatPeriodLabel } from "../../lib/summaryUtils";
 import { SummaryCard, EchoCard, buildEchoCard } from "../../components/SummaryCard";
 import { generateSummariesIfNeeded } from "../../lib/generateSummaries";
+import { MaterialIcons } from "@expo/vector-icons";
+import { moodColourMap, moodIconMap } from "../../lib/sentiment";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const moodColourMap: Record<string, string> = {
-  very_positive: colors.mood.great,
-  positive: colors.mood.good,
-  neutral: colors.mood.neutral,
-  negative: colors.mood.low,
-  very_negative: colors.mood.veryLow,
-};
 /**Take date YYYY-MM-DD and turn either into Today or weekday (Wed, Thu...)*/
 function formatDayLabel(dateStr: string): string {
   const todayStr = getTodayDate();
@@ -117,10 +112,8 @@ export default function Home() {
     const entry = entryMap.get(dateStr);
     return {
       day: formatDayLabel(dateStr),
-      mood:
-        entry && entry.sentimentLabel
-          ? moodColourMap[entry.sentimentLabel]
-          : null,
+      moodColor: entry && entry.sentimentLabel ? moodColourMap[entry.sentimentLabel] : null,
+      moodIcon: entry && entry.sentimentLabel ? moodIconMap[entry.sentimentLabel] : null,
     };
   });
 
@@ -176,16 +169,25 @@ export default function Home() {
         <View style={styles.stripRow}>
           {recentDays.map((item, i) => (
             <View key={i} style={styles.stripItem}>
-              <View
-                style={[
-                  styles.blob,
-                  item.mood
-                    ? { backgroundColor: item.mood }
-                    : item.day == "Today"
+              {item.moodIcon && item.moodColor ? (
+                <View style={[styles.blob, 
+                { backgroundColor: item.moodColor, justifyContent: 'center', alignItems: 'center' }]}>
+                  <MaterialIcons 
+                    name={item.moodIcon} 
+                    size={24}
+                    color={colors.background}
+                  />
+                </View>
+              ) : (
+                <View
+                  style={[
+                    styles.blob,
+                    item.day == "Today"
                       ? { backgroundColor: "transparent", borderWidth: 2, borderColor: colors.accent }
                       : styles.blobEmpty,
-                ]}
-              />
+                  ]}
+                />
+              )}
               <Text style={styles.stripLabel}>{item.day}</Text>
             </View>
           ))}
