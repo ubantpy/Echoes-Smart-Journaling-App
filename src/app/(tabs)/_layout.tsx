@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { Text } from "react-native";
 import { colors } from "../../constants/theme";
+import { MaterialIcons } from "@expo/vector-icons";
 
 export default function TabsLayout() {
   return (
@@ -26,21 +27,21 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: () => <Text style={{ fontSize: 20 }}>🏠</Text>,
+          tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
           title: "Insights",
-          tabBarIcon: () => <Text style={{ fontSize: 20 }}>📊</Text>,
+          tabBarIcon: ({ color, size }) => <MaterialIcons name="insights" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="you"
         options={{
           title: "You",
-          tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text>,
+          tabBarIcon: ({ color, size }) => <MaterialIcons name="person" size={size} color={color} />,
         }}
       />
     </Tabs>

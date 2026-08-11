@@ -4,6 +4,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, fonts } from "../../constants/theme";
 import { getStreak, getLongestStreak, getTotalEntries, getMoodDistribution } from "../../lib/db";
+import { MaterialIcons } from "@expo/vector-icons";
 
 /**Maps sentiment labels to display config - order determines bar segment order*/
 const MOOD_CONFIG = [
@@ -42,7 +43,7 @@ export default function You() {
           style={styles.settingsButton}
           onPress={() => router.push("/settings")}
         >
-          <Text style={styles.settingsIcon}>⚙️</Text>
+          <MaterialIcons name="settings" color={colors.textSecondary} style={styles.settingsIcon}/>
         </Pressable>
       </View>
 
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   settingsIcon: {
-    fontSize: 20,
+    fontSize: 28,
   },
   sectionLabel: {
     fontFamily: fonts.medium,

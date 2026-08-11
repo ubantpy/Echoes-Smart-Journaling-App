@@ -156,7 +156,8 @@ export default function Home() {
         style={styles.streakRow}
         entering={FadeInDown.duration(400).delay(200)}
       >
-        <Text style={styles.streakText}>🔥 {streakCount} day streak</Text>
+        <MaterialIcons name="local-fire-department" size={16} color={streakCount == 0 ? colors.mood.veryLow : colors.mood.great} />
+        <Text style={styles.streakText}>{streakCount} day streak</Text>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.duration(400).delay(260)}>
@@ -271,7 +272,10 @@ const styles = StyleSheet.create({
   },
   streakRow: {
     marginTop: 24,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   streakText: {
     fontFamily: fonts.medium,

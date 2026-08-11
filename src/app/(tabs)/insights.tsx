@@ -534,7 +534,7 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
           <View style={styles.cardHighlight} />
 
           {/* Lock icon */}
-          <Text style={styles.lockIcon}>🔒</Text>
+          <MaterialIcons name ="lock" color={colors.mood.veryLow} style={styles.lockIcon}></MaterialIcons>
 
           <Text style={styles.patternPlaceholderTitle}>Patterns locked</Text>
           <Text style={styles.patternPlaceholderText}>
@@ -1270,7 +1270,7 @@ const styles = StyleSheet.create({
   },
   lockProgressFill: {
     height: 4,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.mood.veryLow,
     borderRadius: 2,
   },
   lockProgressLabel: {
