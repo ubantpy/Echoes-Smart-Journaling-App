@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Text, View, StyleSheet, Pressable, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { colors, fonts } from "../constants/theme";
@@ -15,16 +15,25 @@ export default function QuickEntry() {
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // State to track if they are allowed to write
+  const [hasMainEntry, setHasMainEntry] = useState(true);
+
+  // Check immediately when the screen opens
+  useEffect(() => {
+    const existing = getEntryForDate(getTodayDate());
+    if (!existing) {
+      setHasMainEntry(false);
+      setError("Write your daily entry first before adding quick notes.");
+    }
+  }, []);
+
   /** Saves quick entry then re-analyses sentiment on the full day's combined text */
   const handleSave = async () => {
-    if (text.trim().length == 0) return;
+    if (text.trim().length == 0 || !hasMainEntry) return;
 
     const today = getTodayDate();
     const existing = getEntryForDate(today);
-    if (!existing) {
-      setError("Write your daily entry first before adding quick notes.");
-      return;
-    }
+    if (!existing) return; // Fallback safety check
 
     setIsProcessing(true);
 
@@ -47,6 +56,9 @@ export default function QuickEntry() {
     setIsProcessing(false);
     router.back();
   };
+
+  const currentWords = text.trim().split(/\s+/).filter(Boolean).length;
+  const isOverLimit = currentWords > 400;
 
   return (
     <View style={styles.container}>
@@ -72,21 +84,30 @@ export default function QuickEntry() {
             placeholder="What's on your mind?"
             placeholderTextColor={colors.textSecondary}
             value={text}
-            onChangeText={(t) => { setText(t); setError(null); }}
-            autoFocus
+            onChangeText={setText}
+            editable={hasMainEntry && !isProcessing} // Locks input if no main entry
+            autoFocus={hasMainEntry} // Only autofocus if they are allowed to type
           />
         </View>
+
+        {/*Word count display */}
+        <Text style={[styles.wordCount, isOverLimit && { color: colors.mood.veryLow }]}>
+          {currentWords} / 400 words
+        </Text>
 
         {error && <Text style={styles.errorText}>{error}</Text>}
 
         <Pressable
-          style={[styles.saveButton, isProcessing && { opacity: 0.6 }]}
+          style={[
+            styles.saveButton, 
+            (isProcessing || isOverLimit || currentWords === 0 || !hasMainEntry) && { opacity: 0.6 }
+          ]}
           onPress={handleSave}
-          disabled={isProcessing}
+          disabled={isProcessing || isOverLimit || currentWords === 0 || !hasMainEntry} // Locks button
         >
           <View style={styles.buttonHighlight} />
           <Text style={styles.saveText}>
-            {isProcessing ? "Saving…" : "Save"}
+            {isProcessing ? "Saving…" : isOverLimit ? "Word limit reached" : "Save"}
           </Text>
         </Pressable>
       </View>
@@ -154,6 +175,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.textPrimary,
     textAlignVertical: "top",
+  },
+  wordCount: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: "right",
+    marginBottom: 16,
   },
 
   errorText: {

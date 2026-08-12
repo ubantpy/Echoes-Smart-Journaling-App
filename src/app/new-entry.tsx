@@ -77,6 +77,13 @@ export default function NewEntry() {
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Automatically stop recording at 3 minutes (180 sec)
+  useEffect(() => {
+    if (elapsed >= 180){
+      stopRecording();
+    }
+  }, [elapsed]);
+
   // Processing and connectivity state
   const [isProcessing, setIsProcessing] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
@@ -267,7 +274,16 @@ export default function NewEntry() {
                 <View style={styles.recordCircle} />
               </Pressable>
               <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
-              <Text style={styles.hintText}>Tap circle to finish & save</Text>
+              
+              {/* Show countdown in the last 60 seconds, otherwise show hint */}
+              {elapsed >= 120 ? (
+                // Visual nudge for last 1min
+                <Text style={styles.warningText}>
+                  {180 - elapsed} seconds left
+                </Text>
+              ) : (
+                <Text style={styles.hintText}>Tap circle to finish & save</Text>
+              )}
               
               {/* Cancel recording button */}
               <Pressable style={styles.cancelButton} onPress={cancelRecording}>
@@ -279,41 +295,49 @@ export default function NewEntry() {
       )}
 
       {/* Text mode */}
-      {mode == "text" && (
-        <View style={styles.textContent}>
-          <Text style={styles.title}>Write your entry</Text>
+      {mode == "text" && (() => {
+        const currentWords = text.trim().split(/\s+/).filter(Boolean).length;
+        const isOverLimit = currentWords > 500;
 
-          {/* Input wrapped in a card for border + highlight texture */}
-          <View style={styles.inputCard}>
-            <View style={styles.inputHighlight} />
-            <TextInput
-              style={styles.textInput}
-              multiline
-              placeholder="What's on your mind?"
-              placeholderTextColor={colors.textSecondary}
-              value={text}
-              onChangeText={setText}
-              editable={!isProcessing}
-              autoFocus
-            />
-          </View>
+        return (
+          <View style={styles.textContent}>
+            <Text style={styles.title}>Write your entry</Text>
 
-          <Text style={styles.wordCount}>
-            {text.trim().split(/\s+/).filter(Boolean).length} / 500 words
-          </Text>
+            {/* Input wrapped in a card for border + highlight texture */}
+            <View style={styles.inputCard}>
+              <View style={styles.inputHighlight} />
+              <TextInput
+                style={styles.textInput}
+                multiline
+                placeholder="What's on your mind?"
+                placeholderTextColor={colors.textSecondary}
+                value={text}
+                onChangeText={setText}
+                editable={!isProcessing}
+                autoFocus
+              />
+            </View>
 
-          <Pressable
-            style={[styles.primaryButtonFull, isProcessing && { opacity: 0.6 }]}
-            onPress={handleSave}
-            disabled={isProcessing}
-          >
-            <View style={styles.buttonHighlight} />
-            <Text style={styles.primaryButtonText}>
-              {isProcessing ? "Saving…" : "Save entry"}
+            <Text style={[styles.wordCount, isOverLimit && { color: colors.mood.veryLow }]}>
+              {currentWords} / 500 words
             </Text>
-          </Pressable>
-        </View>
-      )}
+
+            <Pressable
+              style={[
+                styles.primaryButtonFull, 
+                (isProcessing || isOverLimit || currentWords < 5) && { opacity: 0.6 }
+              ]}
+              onPress={handleSave}
+              disabled={isProcessing || isOverLimit || currentWords == 0}
+            >
+              <View style={styles.buttonHighlight} />
+              <Text style={styles.primaryButtonText}>
+                {isProcessing ? "Saving…" : isOverLimit ? "Word limit reached" : "Save entry"}
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })()}
     </View>
   );
 }
@@ -481,6 +505,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  warningText: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.accent,
   },
   cancelButton: {
     marginTop: 32,
