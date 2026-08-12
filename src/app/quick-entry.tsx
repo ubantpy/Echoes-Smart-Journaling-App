@@ -15,13 +15,11 @@ export default function QuickEntry() {
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  /** Saves quick entry then attempts sentiment re-analysis on the full day's text */
+  /** Saves quick entry then re-analyses sentiment on the full day's combined text */
   const handleSave = async () => {
-    if (text.trim().length === 0) return;
+    if (text.trim().length == 0) return;
 
     const today = getTodayDate();
-
-    // Quick entries can only be added if a daily entry already exists for today
     const existing = getEntryForDate(today);
     if (!existing) {
       setError("Write your daily entry first before adding quick notes.");
@@ -30,21 +28,20 @@ export default function QuickEntry() {
 
     setIsProcessing(true);
 
-    // Save the quick entry immediately — this always succeeds regardless of connectivity
+    // Save immediately - always succeeds regardless of connectivity
     addQuickEntry(today, text.trim());
 
-    // Re-analyse sentiment on the combined day text if online
     const online = await isConnected();
     if (online) {
+      // Re-analyse using the full day's text so the mood reflects everything written
       const fullText = [existing.mainText, ...existing.additionalEntries, text.trim()].join(" ");
       const sentiment = await analyseSentiment(fullText);
       if (sentiment) {
-        // Update the main entry's sentiment to reflect the full day's tone
         const { updateEntrySentiment } = await import("@/lib/db");
         updateEntrySentiment(today, sentiment.label);
       }
     } else {
-      setBannerMessage("Quick note saved — mood not updated while offline.");
+      setBannerMessage("Quick note saved - mood not updated while offline.");
     }
 
     setIsProcessing(false);
@@ -54,37 +51,40 @@ export default function QuickEntry() {
   return (
     <View style={styles.container}>
       {bannerMessage && (
-        <OfflineBanner
-          message={bannerMessage}
-          onDismiss={() => setBannerMessage(null)}
-        />
+        <OfflineBanner message={bannerMessage} onDismiss={() => setBannerMessage(null)} />
       )}
-      <Pressable style={styles.closeButton} onPress={() => router.back()}>
-        <Text style={styles.closeText}>✕</Text>
-      </Pressable>
 
-      <View style={styles.centerContent}>
-        <Text style={styles.title}>Quick entry</Text>
+      {/* Top bar */}
+      <View style={styles.topBar}>
+        <Text style={styles.topLabel}>Quick note</Text>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Text style={styles.closeText}>✕</Text>
+        </Pressable>
+      </View>
 
-        <TextInput
-          style={styles.textInput}
-          multiline
-          placeholder="What's on your mind?"
-          placeholderTextColor={colors.textSecondary}
-          value={text}
-          onChangeText={(t) => { setText(t); setError(null); }}
-          autoFocus
-        />
+      <View style={styles.content}>
+        {/* Input wrapped in a card for border + highlight texture */}
+        <View style={styles.inputCard}>
+          <View style={styles.inputHighlight} />
+          <TextInput
+            style={styles.textInput}
+            multiline
+            placeholder="What's on your mind?"
+            placeholderTextColor={colors.textSecondary}
+            value={text}
+            onChangeText={(t) => { setText(t); setError(null); }}
+            autoFocus
+          />
+        </View>
 
-        {error && (
-          <Text style={styles.errorText}>{error}</Text>
-        )}
+        {error && <Text style={styles.errorText}>{error}</Text>}
 
         <Pressable
           style={[styles.saveButton, isProcessing && { opacity: 0.6 }]}
           onPress={handleSave}
           disabled={isProcessing}
         >
+          <View style={styles.buttonHighlight} />
           <Text style={styles.saveText}>
             {isProcessing ? "Saving…" : "Save"}
           </Text>
@@ -99,55 +99,85 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  closeButton: {
-    position: "absolute",
-    top: 56,
-    right: 24,
-    zIndex: 1,
+
+  // ── Top bar ─────────────────────────────────────────
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 56,
+    paddingHorizontal: 24,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#2e3530",
+  },
+  topLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   closeText: {
     fontFamily: fonts.medium,
     fontSize: 20,
     color: colors.textSecondary,
   },
-  centerContent: {
+
+  // ── Content ──────────────────────────────────────────
+  content: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 24,
-    width: "100%",
+    paddingTop: 24,
   },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 22,
-    color: colors.textPrimary,
-    marginBottom: 32,
-  },
-  textInput: {
-    width: "100%",
-    minHeight: 160,
+
+  inputCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#2e3530",
+    overflow: "hidden",
+    marginBottom: 12,
+    position: "relative",
+  },
+  inputHighlight: {
+    position: "absolute",
+    top: 0, left: 0, right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    zIndex: 1,
+  },
+  textInput: {
+    minHeight: 200,
     padding: 16,
     fontFamily: fonts.regular,
     fontSize: 15,
     color: colors.textPrimary,
     textAlignVertical: "top",
   },
+
   errorText: {
     fontFamily: fonts.regular,
     fontSize: 13,
     color: colors.mood.low,
-    marginTop: 12,
+    marginBottom: 16,
     textAlign: "center",
   },
+
   saveButton: {
     backgroundColor: colors.accent,
-    borderRadius: 24,
+    borderRadius: 16,
     paddingVertical: 18,
     alignItems: "center",
     width: "100%",
-    marginTop: 20,
+    overflow: "hidden",
+    position: "relative",
+  },
+  buttonHighlight: {
+    position: "absolute",
+    top: 0, left: 0, right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   saveText: {
     fontFamily: fonts.bold,

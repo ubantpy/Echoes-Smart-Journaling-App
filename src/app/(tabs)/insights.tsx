@@ -649,7 +649,7 @@ export default function Insights() {
   const [allEchoesOpen, setAllEchoesOpen] = useState(false);
   const allSheetY = useSharedValue(ALL_SHEET_HEIGHT);
 
-  /** O(1) lookup map from YYYY-MM-DD → Entry, rebuilt only when entries change */
+  /** O(1) lookup map from YYYY-MM-DD -> Entry, rebuilt only when entries change */
   const entryMap = useMemo(
     () => new Map(entries.map((e) => [e.entryDate, e])),
     [entries]
