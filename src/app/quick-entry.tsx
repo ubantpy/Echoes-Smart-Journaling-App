@@ -2,24 +2,21 @@ import { useState } from "react";
 import { Text, View, StyleSheet, Pressable, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { colors, fonts } from "../constants/theme";
+import { getTodayDate } from "@/lib/dateUtils";
 import { addQuickEntry, getEntryForDate } from "@/lib/db";
-
-// Produce current YYYY-MM-DD date
-function getTodayDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+import { analyseSentiment } from "@/lib/sentiment";
+import { isConnected } from "@/lib/connectivity";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 export default function QuickEntry() {
   const router = useRouter();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Appends text to today's entry's additional_entries array in SQLite
-  const handleSave = () => {
+  /** Saves quick entry then attempts sentiment re-analysis on the full day's text */
+  const handleSave = async () => {
     if (text.trim().length === 0) return;
 
     const today = getTodayDate();
@@ -31,12 +28,37 @@ export default function QuickEntry() {
       return;
     }
 
+    setIsProcessing(true);
+
+    // Save the quick entry immediately — this always succeeds regardless of connectivity
     addQuickEntry(today, text.trim());
+
+    // Re-analyse sentiment on the combined day text if online
+    const online = await isConnected();
+    if (online) {
+      const fullText = [existing.mainText, ...existing.additionalEntries, text.trim()].join(" ");
+      const sentiment = await analyseSentiment(fullText);
+      if (sentiment) {
+        // Update the main entry's sentiment to reflect the full day's tone
+        const { updateEntrySentiment } = await import("@/lib/db");
+        updateEntrySentiment(today, sentiment.label);
+      }
+    } else {
+      setBannerMessage("Quick note saved — mood not updated while offline.");
+    }
+
+    setIsProcessing(false);
     router.back();
   };
 
   return (
     <View style={styles.container}>
+      {bannerMessage && (
+        <OfflineBanner
+          message={bannerMessage}
+          onDismiss={() => setBannerMessage(null)}
+        />
+      )}
       <Pressable style={styles.closeButton} onPress={() => router.back()}>
         <Text style={styles.closeText}>✕</Text>
       </Pressable>
@@ -58,8 +80,14 @@ export default function QuickEntry() {
           <Text style={styles.errorText}>{error}</Text>
         )}
 
-        <Pressable style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveText}>Save</Text>
+        <Pressable
+          style={[styles.saveButton, isProcessing && { opacity: 0.6 }]}
+          onPress={handleSave}
+          disabled={isProcessing}
+        >
+          <Text style={styles.saveText}>
+            {isProcessing ? "Saving…" : "Save"}
+          </Text>
         </Pressable>
       </View>
     </View>

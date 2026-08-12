@@ -7,6 +7,8 @@ import { insertEntry, getEntryForDate } from "@/lib/db";
 import { analyseSentiment } from "@/lib/sentiment";
 import { transcribeAudio } from "@/lib/transcribe";
 import { getTodayDate } from "@/lib/dateUtils";
+import { isConnected } from "@/lib/connectivity";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 type Mode = "choose" | "recording" | "text";
 
@@ -31,6 +33,8 @@ export default function NewEntry() {
 
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
+  // Banner if offline
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
   // Which date this entry is for. Default = today, can be switched to yesterday
   const [targetDate, setTargetDate] = useState<string>(getTodayDate());
   const [hasEntryYesterday, setHasEntryYesterday] = useState(false);
@@ -71,7 +75,6 @@ const stopRecording = async () => {
   if (timerRef.current) clearInterval(timerRef.current);
   setIsProcessing(true);
 
-  // URI is only available after stop() resolves
   await audioRecorder.stop();
   const uri = audioRecorder.uri;
 
@@ -80,14 +83,27 @@ const stopRecording = async () => {
     return;
   }
 
+  // Check connectivity before attempting transcription
+  const online = await isConnected();
+  if (!online) {
+    setIsProcessing(false);
+    setBannerMessage("No internet - couldn't transcribe your recording. Try again when connected.");
+    return;
+  }
+
   const transcribedText = await transcribeAudio(uri);
 
   if (!transcribedText) {
     setIsProcessing(false);
+    setBannerMessage("Transcription failed - please try again.");
     return;
   }
 
+  // Sentiment is optional - entry saves even if it fails
   const sentiment = await analyseSentiment(transcribedText);
+  if (!sentiment) {
+    setBannerMessage("Entry saved - mood analysis unavailable right now.");
+  }
 
   insertEntry({
     entryDate: targetDate,
@@ -101,11 +117,21 @@ const stopRecording = async () => {
 };
 
   // Save text entry with sentiment analysis
+  /** Saves a text entry - sentiment is optional, entry saves regardless */
   const handleSave = async () => {
     if (text.trim().length == 0) return;
 
     setIsProcessing(true);
-    const sentiment = await analyseSentiment(text.trim());
+
+    const online = await isConnected();
+    let sentiment = null;
+
+    if (online){
+      sentiment = await analyseSentiment(text.trim());
+    }
+    else {
+      setBannerMessage("Entry saved — mood analysis unavailable offline.");
+    }
 
     insertEntry({
       entryDate: targetDate,
@@ -120,6 +146,13 @@ const stopRecording = async () => {
 
   return (
     <View style={styles.container}>
+      {/* Offline/error banner - slides in from top when needed */}
+      {bannerMessage && (
+        <OfflineBanner
+          message={bannerMessage}
+          onDismiss={() => setBannerMessage(null)}
+        />
+      )}
       <Pressable style={styles.closeButton} onPress={() => router.dismiss()}>
         <Text style={styles.closeText}>✕</Text>
       </Pressable>
