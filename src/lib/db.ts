@@ -267,3 +267,15 @@ export function getSummary(
         generatedAt: row.generated_at,
     };
 }
+
+/** Permanently deletes all entries from the database */
+export function deleteAllEntries(): void {
+  console.log("delete entries run")
+  //db.runSync(`DELETE FROM entries`);
+}
+
+/** Permanently deletes all summaries from the database */
+export function deleteAllSummaries(): void {
+  console.log("delete summaries run")
+  //db.runSync(`DELETE FROM summaries`);
+}

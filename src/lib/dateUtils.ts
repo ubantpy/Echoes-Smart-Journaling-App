@@ -1,11 +1,15 @@
-const dayCutoffTime = 3;
+let dayCutoffHour = 3;
+/** Sets the active boundary */
+export function setDayCutoffHour(hour: number): void {
+  dayCutoffHour = hour;
+}
 
 /**Returns today's date (but before 3am is treated as the previous day) */
 export function getTodayDate(): string {
   const now = new Date();
 
   // If it's before 3am, treat it as the previous day
-  if (now.getHours() < dayCutoffTime) {
+  if (now.getHours() < dayCutoffHour) {
     now.setDate(now.getDate() - 1);
   }
 
@@ -25,7 +29,7 @@ export function getLastNDates(n: number): string[] {
   const dates: string[] = [];
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date();
-    if (d.getHours() < dayCutoffTime) d.setDate(d.getDate() - 1);
+    if (d.getHours() < dayCutoffHour) d.setDate(d.getDate() - 1);
     d.setDate(d.getDate() - i);
     dates.push(formatDateString(d));
   }

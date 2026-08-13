@@ -19,6 +19,7 @@ import { generateSummariesIfNeeded } from "../../lib/generateSummaries";
 import { DayDetailSheet, SHEET_HEIGHT } from "../../components/DayDetailSheet";
 import { MaterialIcons } from "@expo/vector-icons";
 import { moodColourMap, moodIconMap } from "../../lib/sentiment";
+import { getName } from "../../lib/settings";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -31,12 +32,13 @@ function formatDayLabel(dateStr: string): string {
   return date.toLocaleDateString("en-GB", { weekday: "short" });
 };
 
-/** Returns a time-appropriate greeting*/
-function getGreeting(): string {
+/** Returns a time-appropriate greeting with the user's name */
+function getGreeting(name: string | null): string {
   const hour = new Date().getHours();
-  if (hour > 3 && hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  const suffix = name ? `, ${name}` : "";
+  if (hour > 3 && hour < 12) return `Good morning${suffix}`;
+  if (hour < 18) return `Good afternoon${suffix}`;
+  return `Good evening${suffix}`;
 }
 
 /**Returns today's date formatted for display, e.g. "Thursday, 7 August"*/
@@ -90,6 +92,7 @@ export default function Home() {
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetY = useSharedValue(SHEET_HEIGHT);
+  const [userName, setUserName] = useState<string | null>(null);
 
   /** Opens the day detail sheet for the tapped entry */
   const openSheet = useCallback((entry: Entry) => {
@@ -108,6 +111,8 @@ export default function Home() {
 
   useFocusEffect(
   useCallback(() => {
+    // Reload name in case user changed it in Settings
+    getName().then(setUserName);
     // Generate echoes first, then fetch everything so the screen is always current
     generateSummariesIfNeeded().then(() => {
       // Refetch all home screen data whenever the screen comes into focus
@@ -141,7 +146,7 @@ export default function Home() {
     <View style={styles.outerContainer}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Animated.View entering={FadeInDown.duration(400).delay(0)}>
-        <Text style={styles.greeting}>{getGreeting()}</Text>
+        <Text style={styles.greeting}>{getGreeting(userName)}</Text>
         <Text style={styles.date}>{getDisplayDate()}</Text>
       </Animated.View>
 

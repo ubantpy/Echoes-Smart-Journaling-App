@@ -100,10 +100,10 @@ export default function QuickEntry() {
         <Pressable
           style={[
             styles.saveButton, 
-            (isProcessing || isOverLimit || currentWords === 0 || !hasMainEntry) && { opacity: 0.6 }
+            (isProcessing || isOverLimit || currentWords == 0 || !hasMainEntry) && { opacity: 0.6 }
           ]}
           onPress={handleSave}
-          disabled={isProcessing || isOverLimit || currentWords === 0 || !hasMainEntry} // Locks button
+          disabled={isProcessing || isOverLimit || currentWords == 0 || !hasMainEntry} // Locks button
         >
           <View style={styles.buttonHighlight} />
           <Text style={styles.saveText}>
