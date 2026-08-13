@@ -165,7 +165,7 @@ export default function Settings() {
   const handleDeleteSummaries = useCallback(() => {
     Alert.alert(
       "Delete all echoes?",
-      "This pernamently REMOVES all weekly and monthly echoes. New ones will regenerate as you journal.",
+      "This PERMANENTLY REMOVES all weekly and monthly echoes. New ones will regenerate as you journal.",
       [
         { text: "Cancel", style: "cancel" },
         {

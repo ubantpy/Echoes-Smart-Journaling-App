@@ -271,13 +271,13 @@ export function getSummary(
 /** Permanently deletes all entries from the database */
 export function deleteAllEntries(): void {
   console.log("delete entries run")
-  //db.runSync(`DELETE FROM entries`);
+  db.runSync(`DELETE FROM entries`);
 }
 
 /** Permanently deletes all summaries from the database */
 export function deleteAllSummaries(): void {
   console.log("delete summaries run")
-  //db.runSync(`DELETE FROM summaries`);
+  db.runSync(`DELETE FROM summaries`);
 }
 
 // Data Migration (export/import)
