@@ -279,3 +279,50 @@ export function deleteAllSummaries(): void {
   console.log("delete summaries run")
   //db.runSync(`DELETE FROM summaries`);
 }
+
+// Data Migration (export/import)
+
+/** Exports all entries and summaries into a single JSON string */
+export async function exportData(): Promise<string> {
+  const entries = await db.getAllAsync(`SELECT * FROM entries`);
+  const summaries = await db.getAllAsync(`SELECT * FROM summaries`);
+  
+  const backup = {version: 1, entries, summaries};
+  return JSON.stringify(backup);
+}
+
+/** Takes a JSON string, parses it, and inserts it into the database.*/
+export function importData(jsonString: string): boolean {
+  try {
+    const data = JSON.parse(jsonString);
+    if (!data.entries || !data.summaries || !Array.isArray(data.entries) || 
+    !Array.isArray(data.summaries) || (data.entries.length > 0 && !data.entries[0].entry_date) || data.version !== 1
+    ) return false;
+
+    // Run inside a transaction. If one fails, roll back to prevent corrupted data
+    db.execSync('BEGIN TRANSACTION');
+
+    for (const e of data.entries) {
+      db.runSync(
+        `INSERT OR REPLACE INTO entries (entry_date, created_at, main_text, additional_entries, sentiment_label, sentiment_confidence, low_confidence, is_deleted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [e.entry_date, e.created_at, e.main_text, e.additional_entries, e.sentiment_label, e.sentiment_confidence, e.low_confidence, e.is_deleted]
+      );
+    }
+
+    for (const s of data.summaries) {
+      db.runSync(
+        `INSERT OR REPLACE INTO summaries (period_type, period_start, period_end, summary_text, generated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [s.period_type, s.period_start, s.period_end, s.summary_text, s.generated_at]
+      );
+    }
+
+    db.execSync('COMMIT');
+    return true;
+  }
+  catch {
+    db.execSync('ROLLBACK');
+    return false;
+  }
+}

@@ -9,9 +9,12 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import * as DocumentPicker from "expo-document-picker";
 import { colors, fonts } from "../constants/theme";
 import { getName, saveName, getDayBoundary, saveDayBoundary } from "../lib/settings";
-import { deleteAllEntries, deleteAllSummaries } from "../lib/db";
+import { deleteAllEntries, deleteAllSummaries, exportData, importData } from "../lib/db";
 
 /** Available day boundary options shown in the picker */
 const BOUNDARY_OPTIONS = [1, 2, 3, 4];
@@ -86,11 +89,64 @@ export default function Settings() {
     setDayCutoffHour(hour);
   }, []);
 
+  /** Generates a JSON file and opens the native save/share dialog */
+  const handleExport = useCallback(async () => {
+    try {
+      const dataString = await exportData();
+      const fileUri = FileSystem.documentDirectory + "echoes_backup.json";
+      
+      await FileSystem.writeAsStringAsync(fileUri, dataString, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/json",
+          dialogTitle: "Save Echoes Backup",
+        });
+      } else {
+        Alert.alert("Error", "File sharing is not available on this device.");
+      }
+    } catch (e) {
+      Alert.alert("Export Failed", "Something went wrong while exporting your data.");
+    }
+  }, []);
+
+  /** Open a file picker -> read the JSON file -> import it */
+  const handleImport = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/json", "text/plain", "*/*"], 
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const fileUri = result.assets[0].uri;
+      const fileContents = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const success = importData(fileContents);
+      if(success){
+        Alert.alert("Success!", "Your data has been imported.", [
+          { text: "OK", onPress: () => router.replace("/") }
+        ]);
+      }
+      else {
+        Alert.alert("Invalid Data", "The selected file doesn't look like a valid Echoes backup.");
+      }
+    } catch (e) {
+      Alert.alert("Import Failed", "Could not read the selected file.");
+    }
+  }, []);
+
   /** Confirm then delete all entries */
   const handleDeleteEntries = useCallback(() => {
     Alert.alert(
       "Delete all entries?",
-      "This permanently removes every journal entry you've written. This cannot be undone.",
+      "This permanently REMOVES every journal entry you've written. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -109,7 +165,7 @@ export default function Settings() {
   const handleDeleteSummaries = useCallback(() => {
     Alert.alert(
       "Delete all echoes?",
-      "This removes all weekly and monthly echoes. New ones will regenerate as you journal.",
+      "This pernamently REMOVES all weekly and monthly echoes. New ones will regenerate as you journal.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -191,6 +247,20 @@ export default function Settings() {
                 </Pressable>
               ))}
             </View>
+          </SettingsRow>
+        </SettingsGroup>
+
+        {/* Backup */}
+        <SettingsGroup title="Backup">
+          <SettingsRow label="Export backup file" hint="Save your entries as a .json file">
+            <Pressable style={styles.actionButton} onPress={handleExport}>
+              <Text style={styles.actionButtonText}>Export</Text>
+            </Pressable>
+          </SettingsRow>
+          <SettingsRow label="Import backup file" hint="Restore from a saved .json file" last>
+            <Pressable style={styles.actionButton} onPress={handleImport}>
+              <Text style={styles.actionButtonText}>Import</Text>
+            </Pressable>
           </SettingsRow>
         </SettingsGroup>
 
@@ -383,6 +453,19 @@ const styles = StyleSheet.create({
   },
   boundaryOptionTextActive: {
     color: colors.background,
+  },
+  
+  // Action button
+  actionButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: "#2e3530",
+  },
+  actionButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.textPrimary,
   },
 
   // Destructive button
