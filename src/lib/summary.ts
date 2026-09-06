@@ -2,7 +2,10 @@ const BACKEND_URL = "https://echoes-backend.vercel.app";
 
 /**  Sends concatenated entry texts to the backend and returns the generated echo text
 Returns null on any failure - caller handles the fallback*/
-export async function fetchSummary(entries: string[]): Promise<string | null> {
+export async function fetchSummary(
+  entries: string[],
+  periodType: "weekly" | "monthly"
+): Promise<string | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -10,7 +13,7 @@ export async function fetchSummary(entries: string[]): Promise<string | null> {
     const response = await fetch(`${BACKEND_URL}/api/summarise`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entries }), // ← array, not a joined string
+      body: JSON.stringify({ entries, periodType}),
       signal: controller.signal,
     });
 

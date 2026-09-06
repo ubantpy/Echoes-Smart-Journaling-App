@@ -22,7 +22,7 @@ async function generateIfNeeded(
 
   // Concatenate entry texts into one block for the backend
   const texts = entries.map((e) => e.mainText);
-  const summaryText = await fetchSummary(texts);
+  const summaryText = await fetchSummary(texts, periodType);
   if (!summaryText) return;
 
   // Persist the generated echo to SQLite
