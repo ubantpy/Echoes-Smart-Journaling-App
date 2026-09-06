@@ -12,7 +12,7 @@ import Animated, {
 import { colors, fonts } from "../constants/theme";
 import { insertEntry, getEntryForDate } from "@/lib/db";
 import { analyseSentiment } from "@/lib/sentiment";
-import { transcribeAudio } from "@/lib/transcribe";
+import { transcribeAudio, type TranscribeResult } from "@/lib/transcribe";
 import { getTodayDate } from "@/lib/dateUtils";
 import { isConnected } from "@/lib/connectivity";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -132,19 +132,24 @@ export default function NewEntry() {
       return;
     }
 
-    const transcribedText = await transcribeAudio(uri);
-    if (!transcribedText) {
+    const result = await transcribeAudio(uri);
+
+    if (!result.success) {
       setIsProcessing(false);
-      setBannerMessage("Transcription failed - please try again.");
+      setBannerMessage(
+        result.reason === "timeout"
+          ? "Transcription timed out - please try again."
+          : "Transcription failed - please try again."
+      );
       return;
     }
 
-    const sentiment = await analyseSentiment(transcribedText);
+    const sentiment = await analyseSentiment(result.text);
     if (!sentiment) setBannerMessage("Entry saved - mood analysis unavailable right now.");
 
     insertEntry({
       entryDate: targetDate,
-      mainText: transcribedText,
+      mainText: result.text,
       sentimentLabel: sentiment?.label ?? undefined,
       sentimentConfidence: sentiment?.confidence ?? undefined,
     });

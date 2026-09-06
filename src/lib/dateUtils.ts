@@ -4,12 +4,12 @@ export function setDayCutoffHour(hour: number): void {
   dayCutoffHour = hour;
 }
 
-/**Returns today's date (but before 3am is treated as the previous day) */
+/**Returns today's date (but before 1-4am is treated as the previous day) */
 export function getTodayDate(): string {
   const now = new Date();
 
-  // If it's before 3am, treat it as the previous day
-  if (now.getHours() < dayCutoffHour) {
+  // If it's before 1-4am, treat it as the previous day
+  if (now.getHours() < dayCutoffHour){
     now.setDate(now.getDate() - 1);
   }
 

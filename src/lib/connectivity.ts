@@ -12,7 +12,8 @@ export async function isConnected(): Promise<boolean> {
     });
     clearTimeout(timeout);
     return res.ok || res.status < 500;
-  } catch {
+  }
+  catch {
     return false;
   }
 }

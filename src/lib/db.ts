@@ -39,7 +39,7 @@ export function insertEntry(params: {
     sentimentConfidence?: number;
 }){
     const createdAt = new Date().toISOString();
-    const lowConfidence = params.sentimentConfidence !== undefined && params.sentimentConfidence < 50 ? 1 : 0;
+    const lowConfidence = params.sentimentConfidence != undefined && params.sentimentConfidence < 50 ? 1 : 0;
 
     // If an entry already exists for this date, update it instead
     const existing = db.getFirstSync<{id: number}>(
@@ -123,12 +123,12 @@ export function getEntriesInRange(start: string, end: string): Entry[] {
 
 /**Count consecutive days ending today that have at least one entry*/
 export function getStreak(): number {
-  // Fetch all non-deleted entry dates - newest first
+  // Fetch all nondeleted entry dates - newest first
   const rows = db.getAllSync<{ entry_date: string }>(
     `SELECT entry_date FROM entries WHERE is_deleted = 0 ORDER BY entry_date DESC`
   );
 
-  if (rows.length === 0) return 0;
+  if (rows.length == 0) return 0;
 
   // Build a Set for O(1) date lookup
   const dateSet = new Set(rows.map((r) => r.entry_date));
@@ -136,9 +136,8 @@ export function getStreak(): number {
   let streak = 0;
   const cursor = new Date(getTodayDate() + "T00:00:00");
 
-  // If there's no entry today, start counting from yesterday,
-  // so the streak isn't broken until tomorrow
-  if (!dateSet.has(getTodayDate())) {
+  // If there's no entry today, start counting from yesterday, so the streak isn't broken until next day
+  if (!dateSet.has(getTodayDate())){
     cursor.setDate(cursor.getDate() - 1);
   }
 
@@ -147,7 +146,8 @@ export function getStreak(): number {
     if (dateSet.has(formatDateString(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
-    } else {
+    }
+    else {
       break;
     }
   }
@@ -291,12 +291,12 @@ export async function exportData(): Promise<string> {
   return JSON.stringify(backup);
 }
 
-/** Takes a JSON string, parses it, and inserts it into the database.*/
+/** Takes a JSON string, parses it, and inserts into  database.*/
 export function importData(jsonString: string): boolean {
   try {
     const data = JSON.parse(jsonString);
     if (!data.entries || !data.summaries || !Array.isArray(data.entries) || 
-    !Array.isArray(data.summaries) || (data.entries.length > 0 && !data.entries[0].entry_date) || data.version !== 1
+    !Array.isArray(data.summaries) || (data.entries.length > 0 && !data.entries[0].entry_date) || data.version != 1
     ) return false;
 
     // Run inside a transaction. If one fails, roll back to prevent corrupted data
@@ -321,7 +321,7 @@ export function importData(jsonString: string): boolean {
     db.execSync('COMMIT');
     return true;
   }
-  catch {
+  catch{
     db.execSync('ROLLBACK');
     return false;
   }

@@ -1,7 +1,10 @@
 const BASE_URL = "https://echoes-backend.vercel.app";
 
-// Reads a local audio file, converts to base64, sends to Whisper for transcription
-export async function transcribeAudio(fileUri: string): Promise<string | null> {
+export type TranscribeResult =
+  | { success: true; text: string }
+  | { success: false; reason: "timeout" | "error" };
+
+export async function transcribeAudio(fileUri: string): Promise<TranscribeResult> {
   try {
     const response = await fetch(fileUri);
     const blob = await response.blob();
@@ -16,16 +19,27 @@ export async function transcribeAudio(fileUri: string): Promise<string | null> {
       reader.readAsDataURL(blob);
     });
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
     const res = await fetch(`${BASE_URL}/api/transcribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ audioBase64: base64 }),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeout);
     const data = await res.json();
 
-    return data.text ?? null;
-  } catch (err) {
-    return null;
+    return data.text
+      ? { success: true, text: data.text }
+      : { success: false, reason: "error" };
+
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      return { success: false, reason: "timeout" };
+    }
+    return { success: false, reason: "error" };
   }
 }
