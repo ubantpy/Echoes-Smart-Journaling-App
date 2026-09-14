@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Text, View, StyleSheet, Pressable, TextInput } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import Animated, {
   useSharedValue,
@@ -67,6 +67,8 @@ function PulsingRings() {
 
 export default function NewEntry() {
   const router = useRouter();
+  const { yesterday } = useLocalSearchParams<{ yesterday?: string }>();
+  const forcedYesterday = yesterday == "true";
   const [mode, setMode] = useState<Mode>("choose");
   const [text, setText] = useState("");
 
@@ -89,7 +91,14 @@ export default function NewEntry() {
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   // Which date this entry is for - defaults to today, can switch to yesterday
-  const [targetDate, setTargetDate] = useState<string>(getTodayDate());
+  const [targetDate, setTargetDate] = useState<string>(() => {
+    if (yesterday === "true") {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      return `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    }
+    return getTodayDate();
+  });
   const [hasEntryYesterday, setHasEntryYesterday] = useState(false);
 
   // Clean up timer on unmount
@@ -251,7 +260,7 @@ export default function NewEntry() {
             </Pressable>
           </View>
 
-          {!hasEntryYesterday && (
+          {!hasEntryYesterday && !forcedYesterday && (
             <Pressable style={styles.yesterdayButton} onPress={toggleYesterday}>
               <Text style={styles.yesterdayText}>
                 {targetDate == getTodayDate()

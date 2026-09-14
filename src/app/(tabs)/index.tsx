@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect  } from "react";
-import { Text, View, StyleSheet, Pressable, ScrollView, Dimensions } from "react-native";
+import { Text, View, StyleSheet, Pressable, ScrollView, Dimensions, Alert } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import Animated, {
   FadeInDown,
@@ -155,7 +155,20 @@ export default function Home() {
           style={[styles.newEntryButton, hasEntryToday && styles.newEntryButtonDone]}
           onPress={() => {
             if (hasEntryToday) {
-              alert("You've already written today's entry. Use Quick Entry to add a note.");
+              const y = new Date();
+              y.setDate(y.getDate() - 1);
+              const yesterdayStr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+              const hasYesterday = !!getEntryForDate(yesterdayStr);
+
+              if (hasYesterday) {
+                Alert.alert(
+                  "All caught up",
+                  "You've already written today's and yesterday's entry. Use Quick Entry to add a note.",
+                  [{ text: "OK" }]
+                );
+              } else {
+                router.push("/new-entry?yesterday=true");
+              }
               return;
             }
             router.push("/new-entry");
@@ -163,7 +176,7 @@ export default function Home() {
         >
           <View style={styles.buttonHighlight} />
           <Text style={styles.newEntryText}>
-            {hasEntryToday ? "Entry done ✓" : "Daily entry"}
+            {hasEntryToday ? "Add yesterday's entry" : "Daily entry"}
           </Text>
         </AnimatedPressable>
       </Animated.View>
