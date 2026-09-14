@@ -49,7 +49,7 @@ export function insertEntry(params: {
 
     if (existing) {
         db.runSync(
-            `UPDATE entries SET main_text = ?, sentiment_label = ?, sentiment_confidence = ?, low_confidence = ? WHERE entry_date = ?`,
+            `UPDATE entries SET main_text = ?, sentiment_label = ?, sentiment_confidence = ?, low_confidence = ?, is_deleted = 0 WHERE entry_date = ?`,
             [
                 params.mainText,
                 params.sentimentLabel ?? null,
