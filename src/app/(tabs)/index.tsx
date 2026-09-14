@@ -240,8 +240,14 @@ export default function Home() {
           translateY={sheetY}
           onClose={closeSheet}
           onMoodChange={() => {
+            setEntries(getRecentEntries(7));
+          }}
+          onDelete={() => {
             // Refresh entries so the blob colour updates on return
             setEntries(getRecentEntries(7));
+            setHasEntryToday(!!getEntryForDate(getTodayDate()));
+            setStreakCount(getStreak());
+            closeSheet();
           }}
         />
       )}

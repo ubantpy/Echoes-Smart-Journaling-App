@@ -176,6 +176,14 @@ export function updateEntrySentiment(entryDate: string, label: SentimentLabel): 
   );
 }
 
+/** Soft deletes an entry by setting is_deleted = 1 */
+export function deleteEntry(entryDate: string): void {
+  db.runSync(
+    `UPDATE entries SET is_deleted = 1 WHERE entry_date = ?`,
+    [entryDate]
+  );
+}
+
 /** Returns total number of non-deleted entries*/
 export function getTotalEntries(): number {
   const row = db.getFirstSync<{ count: number }>(

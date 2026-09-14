@@ -827,9 +827,13 @@ export default function Insights() {
           translateY={sheetY}
           onClose={closeSheet}
           onMoodChange={() => {
-            // Refresh entries so the calendar blob updates immediately
             const rangeStart = `${currentYear - 1}-01-01`;
             setEntries(getEntriesInRange(rangeStart, todayStr));
+          }}
+          onDelete={() => {
+            const rangeStart = `${currentYear - 1}-01-01`;
+            setEntries(getEntriesInRange(rangeStart, todayStr));
+            closeSheet();
           }}
         />
       )}

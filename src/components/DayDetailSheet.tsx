@@ -1,5 +1,5 @@
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Text, View, StyleSheet, Pressable, ScrollView } from "react-native";
+import { Text, View, StyleSheet, Pressable, ScrollView, Alert } from "react-native";
 import Animated, {
   useAnimatedStyle,
   SharedValue,
@@ -9,7 +9,7 @@ import { Entry } from "../lib/types";
 import { getMoodColour, formatLongDate, MOOD_COLOURS, MOOD_LABELS } from "../lib/calendarUtils";
 import { useState } from "react";
 import { SentimentLabel } from "../lib/types";
-import { updateEntrySentiment } from "../lib/db";
+import { updateEntrySentiment, deleteEntry } from "../lib/db";
 
 const SHEET_HEIGHT = 500;
 export { SHEET_HEIGHT };
@@ -20,13 +20,14 @@ interface DayDetailSheetProps {
   onClose: () => void;
   /** Called after the user manually overrides the mood so the parent can refresh */
   onMoodChange?: (entryDate: string, label: SentimentLabel) => void;
+  onDelete?: (entryDate: string) => void;
 }
 
 /**
  * Bottom sheet that slides up from the bottom to show a day's full entry detail.
  * Tap the handle bar or the backdrop to dismiss.
  */
-export function DayDetailSheet({ entry, translateY, onClose, onMoodChange }: DayDetailSheetProps) {
+export function DayDetailSheet({ entry, translateY, onClose, onMoodChange, onDelete }: DayDetailSheetProps) {
   const insets = useSafeAreaInsets();
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -46,6 +47,26 @@ export function DayDetailSheet({ entry, translateY, onClose, onMoodChange }: Day
     setOverrideLabel(label);
     setPickerOpen(false);
     onMoodChange?.(entry.entryDate, label);
+  };
+
+  /**Delete an entry */
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete entry",
+      "This entry will be permanently deleted. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteEntry(entry.entryDate);
+            onClose();
+            onDelete?.(entry.entryDate);
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -124,6 +145,9 @@ export function DayDetailSheet({ entry, translateY, onClose, onMoodChange }: Day
             <Text style={styles.quickNoteEmpty}>No quick notes for this day.</Text>
           )}
         </View>
+        <Pressable style={styles.deleteButton} onPress={handleDelete}>
+          <Text style={styles.deleteButtonText}>Delete entry</Text>
+        </Pressable>
       </ScrollView>
     </Animated.View>
   );
@@ -254,5 +278,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: 12,
     color: colors.background,
+  },
+  deleteButton: {
+    marginTop: 24,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#3e1515",
+    backgroundColor: "#1a0a0a",
+  },
+  deleteButtonText: {
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    color: "#e05555",
   },
 });
