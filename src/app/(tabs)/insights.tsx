@@ -1,55 +1,69 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Text, View, StyleSheet, Pressable, ScrollView, 
-  Dimensions, PanResponder, BackHandler } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  BackHandler,
+  Dimensions,
+  Image,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  runOnJS,
   SharedValue,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DayDetailSheet, SHEET_HEIGHT } from "../../components/DayDetailSheet";
+import {
+  EchoCard,
+  SummaryCard,
+  buildEchoCard,
+} from "../../components/SummaryCard";
 import { colors, fonts } from "../../constants/theme";
-import { getEntriesInRange, getSummary } from "../../lib/db";
-import { Entry } from "../../lib/types";
-import { getTodayDate, formatDateString } from "../../lib/dateUtils";
-import { MONTH_NAMES,
+import {
+  MONTH_NAMES,
   MONTH_NAMES_SHORT,
   MOOD_COLOURS,
   MOOD_LABELS,
-  getMoodColour,
   buildMonthGrid,
   buildYearColumns,
-  formatLongDate, } from "../../lib/calendarUtils";
-import { getBestAndWorstDay,
+  getMoodColour
+} from "../../lib/calendarUtils";
+import { getTodayDate } from "../../lib/dateUtils";
+import { getEntriesInRange, getSummary } from "../../lib/db";
+import {
+  getBestAndWorstDay,
+  getDayName,
   getMonthlyAverage,
   getMonthlyConsistency,
   scoreToLabel,
-  getDayName, } from "../../lib/insightsUtils";
-import { SummaryCard, EchoCard, buildEchoCard } from "../../components/SummaryCard";
+} from "../../lib/insightsUtils";
+import { moodIconMap } from "../../lib/sentiment";
 import {
-  getLastNWeekRanges,
-  getLastNMonthRanges,
-  getAllWeekRangesFrom,
-  getAllMonthRangesFrom,
   formatPeriodLabel,
+  getAllMonthRangesFrom,
+  getAllWeekRangesFrom,
+  getLastNMonthRanges,
+  getLastNWeekRanges,
 } from "../../lib/summaryUtils";
-import { MaterialIcons } from "@expo/vector-icons";
-import { moodColourMap, moodIconMap } from "../../lib/sentiment";
-import { DayDetailSheet, SHEET_HEIGHT } from "../../components/DayDetailSheet";
-  
+import { Entry } from "../../lib/types";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Layout constants 
+// Layout constants
 const OUTER_PADDING = 24;
 const CARD_PADDING = 16;
 
 /** Mood blob diameter in month view - derived from equal cell share of available width */
-const MONTH_BLOB = Math.floor(
-  (SCREEN_WIDTH - OUTER_PADDING * 2 - CARD_PADDING * 2) / 7
-) - 12;
+const MONTH_BLOB =
+  Math.floor((SCREEN_WIDTH - OUTER_PADDING * 2 - CARD_PADDING * 2) / 7) - 12;
 
 /** Total horizontal space available inside the calendar card */
 const AVAILABLE_WIDTH = SCREEN_WIDTH - OUTER_PADDING * 2 - CARD_PADDING * 2;
@@ -58,24 +72,26 @@ const NUM_YEAR_COLS = 12;
 /** Gap between columns and rows */
 const YEAR_GAP = 2;
 /** Square cell size - computed so all 18 columns fit without horizontal scroll */
-const YEAR_CELL = Math.floor((AVAILABLE_WIDTH - (NUM_YEAR_COLS - 1) * YEAR_GAP) / NUM_YEAR_COLS);
+const YEAR_CELL = Math.floor(
+  (AVAILABLE_WIDTH - (NUM_YEAR_COLS - 1) * YEAR_GAP) / NUM_YEAR_COLS,
+);
 /** Full column stride including gap */
 const YEAR_COL_WIDTH = YEAR_CELL + YEAR_GAP;
 
 /** Height of the "see all echoes" full-history sheet */
 const ALL_SHEET_HEIGHT = Math.round(SCREEN_HEIGHT * 0.88);
 
-// Static data 
+// Static data
 const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
-// Helper functions 
+// Helper functions
 
 /**
  * Returns the week-column index at which each month first appears in the year grid.
  * Used to position the month name labels above the contribution columns.
  */
 function getMonthLabelPositions(
-  weeks: (string | null)[][]
+  weeks: (string | null)[][],
 ): { label: string; weekIndex: number }[] {
   const positions: { label: string; weekIndex: number }[] = [];
   let lastMonth = -1;
@@ -124,7 +140,7 @@ function MonthCalendar({
       {/* Navigation row: prev arrow, month+year label, next arrow */}
       <View style={styles.monthNavRow}>
         <Pressable onPress={onPrev} hitSlop={12} style={styles.navArrow}>
-          <Text style={styles.navArrowText}>{'<'}</Text>
+          <Text style={styles.navArrowText}>{"<"}</Text>
         </Pressable>
         <Text style={styles.monthTitle}>
           {MONTH_NAMES[month]} {year}
@@ -135,8 +151,10 @@ function MonthCalendar({
           style={styles.navArrow}
           disabled={!canGoNext}
         >
-          <Text style={[styles.navArrowText, !canGoNext && styles.navArrowDisabled]}>
-            {'>'}
+          <Text
+            style={[styles.navArrowText, !canGoNext && styles.navArrowDisabled]}
+          >
+            {">"}
           </Text>
         </Pressable>
       </View>
@@ -144,7 +162,9 @@ function MonthCalendar({
       {/* M T W T F S S column headers */}
       <View style={styles.weekdayRow}>
         {WEEKDAY_LABELS.map((lbl, i) => (
-          <Text key={i} style={styles.weekdayLabel}>{lbl}</Text>
+          <Text key={i} style={styles.weekdayLabel}>
+            {lbl}
+          </Text>
         ))}
       </View>
 
@@ -155,13 +175,17 @@ function MonthCalendar({
           return (
             <View key={rowIndex} style={styles.monthRow}>
               {rowCells.map((dateStr, colIndex) => {
-                if (!dateStr) return <View key={colIndex} style={styles.monthCell} />;
+                if (!dateStr)
+                  return <View key={colIndex} style={styles.monthCell} />;
 
                 const entry = entryMap.get(dateStr);
                 const colour = getMoodColour(entry);
                 const isToday = dateStr == todayStr;
                 const isFuture = dateStr > todayStr;
-                const iconName = entry && entry.sentimentLabel ? moodIconMap[entry.sentimentLabel] : null;
+                const iconName =
+                  entry && entry.sentimentLabel
+                    ? moodIconMap[entry.sentimentLabel]
+                    : null;
 
                 return (
                   <Pressable
@@ -171,13 +195,20 @@ function MonthCalendar({
                     disabled={!entry || isFuture}
                   >
                     {iconName && colour ? (
-                      <View style={[styles.monthBlob, 
-                      { backgroundColor: colour, justifyContent: 'center', alignItems: 'center' }, 
-                      isFuture && styles.dimmed]}>
-                        <MaterialIcons 
-                          name={iconName} 
-                          size={20}
-                          color={colors.background} 
+                      <View
+                        style={[
+                          styles.monthBlob,
+                          {
+                            backgroundColor: colour + "22",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          },
+                          isFuture && styles.dimmed,
+                        ]}
+                      >
+                        <Image
+                          source={iconName}
+                          style={{ width: MONTH_BLOB - 4, height: MONTH_BLOB - 4 }}
                         />
                       </View>
                     ) : (
@@ -185,8 +216,16 @@ function MonthCalendar({
                         style={[
                           styles.monthBlob,
                           isToday
-                            ? { backgroundColor: "transparent", borderWidth: 2, borderColor: colors.accent }
-                            : { backgroundColor: "transparent", borderWidth: 1, borderColor: "#2e3530" },
+                            ? {
+                                backgroundColor: "transparent",
+                                borderWidth: 2,
+                                borderColor: colors.accent,
+                              }
+                            : {
+                                backgroundColor: "transparent",
+                                borderWidth: 1,
+                                borderColor: "#2e3530",
+                              },
                           isFuture && styles.dimmed,
                         ]}
                       />
@@ -211,7 +250,7 @@ function MonthCalendar({
   );
 }
 
-// YearCalendar 
+// YearCalendar
 
 interface YearCalendarProps {
   year: number;
@@ -221,7 +260,12 @@ interface YearCalendarProps {
 }
 
 /** Full-year contribution grid */
-function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProps) {
+function YearCalendar({
+  year,
+  entryMap,
+  todayStr,
+  onDayPress,
+}: YearCalendarProps) {
   // Recompute only when year changes
   const weeks = useMemo(() => buildYearColumns(year), [year]);
   const monthLabels = useMemo(() => getMonthLabelPositions(weeks), [weeks]);
@@ -233,7 +277,10 @@ function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProp
         {monthLabels.map(({ label, weekIndex }) => (
           <Text
             key={label}
-            style={[styles.yearMonthLabel, { left: weekIndex * YEAR_COL_WIDTH }]}
+            style={[
+              styles.yearMonthLabel,
+              { left: weekIndex * YEAR_COL_WIDTH },
+            ]}
           >
             {label}
           </Text>
@@ -251,7 +298,10 @@ function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProp
               const colour = getMoodColour(entry);
               const isToday = dateStr == todayStr;
               const isFuture = dateStr > todayStr;
-              const iconName = entry && entry.sentimentLabel ? moodIconMap[entry.sentimentLabel] : null;
+              const iconName =
+                entry && entry.sentimentLabel
+                  ? moodIconMap[entry.sentimentLabel]
+                  : null;
 
               return (
                 <Pressable
@@ -261,25 +311,45 @@ function YearCalendar({ year, entryMap, todayStr, onDayPress }: YearCalendarProp
                   disabled={!entry || isFuture}
                 >
                   {iconName && colour ? (
-                  <View style={[styles.yearDot, { backgroundColor: colour, justifyContent: 'center', alignItems: 'center' }]}>
-                    <MaterialIcons 
-                      name={iconName} 
-                      size={16}
-                      color={colors.background} 
+                    <View
+                      style={[
+                        styles.yearDot,
+                        {
+                          backgroundColor: colour + "22",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={iconName}
+                        style={{ width: YEAR_CELL - 2, height: YEAR_CELL - 2 }}
+                      />
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.yearDot,
+                        isToday
+                          ? {
+                              backgroundColor: "transparent",
+                              borderWidth: 1.5,
+                              borderColor: colors.accent,
+                            }
+                          : isFuture
+                            ? {
+                                backgroundColor: "transparent",
+                                borderWidth: 1,
+                                borderColor: "#232826",
+                              }
+                            : {
+                                backgroundColor: "transparent",
+                                borderWidth: 1,
+                                borderColor: "#2e3530",
+                              },
+                      ]}
                     />
-                  </View>
-                ) : (
-                  <View
-                    style={[
-                      styles.yearDot,
-                      isToday
-                        ? { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.accent }
-                        : isFuture
-                        ? { backgroundColor: "transparent", borderWidth: 1, borderColor: "#232826" }
-                        : { backgroundColor: "transparent", borderWidth: 1, borderColor: "#2e3530" },
-                    ]}
-                  />
-                )}
+                  )}
                 </Pressable>
               );
             })}
@@ -304,7 +374,12 @@ function PatternCard({ title, locked, children }: PatternCardProps) {
       <View style={styles.patternCardHeader}>
         <Text style={styles.patternCardTitle}>{title}</Text>
         {locked && (
-          <MaterialIcons name="lock" size={13} color={colors.mood.veryLow} style={{ opacity: 0.5 }} />
+          <MaterialIcons
+            name="lock"
+            size={13}
+            color={colors.mood.veryLow}
+            style={{ opacity: 0.5 }}
+          />
         )}
       </View>
       {children}
@@ -329,7 +404,12 @@ interface AllEchoesSheetProps {
  * Full-history sheet showing every weekly or monthly echo since the user's first entry.
  * Slides up from bottom; each row shows the period label and summary preview.
  */
-function AllEchoesSheet({ echoView, entries, translateY, onClose }: AllEchoesSheetProps) {
+function AllEchoesSheet({
+  echoView,
+  entries,
+  translateY,
+  onClose,
+}: AllEchoesSheetProps) {
   const insets = useSafeAreaInsets();
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -346,7 +426,8 @@ function AllEchoesSheet({ echoView, entries, translateY, onClose }: AllEchoesShe
 
   // Swipe down to dismiss - tracks drag distance and closes if dragged far enough
   const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx),
+    onMoveShouldSetPanResponder: (_, g) =>
+      g.dy > 8 && Math.abs(g.dy) > Math.abs(g.dx),
     onPanResponderMove: (_, g) => {
       if (g.dy > 0) translateY.value = g.dy;
     },
@@ -384,22 +465,28 @@ function AllEchoesSheet({ echoView, entries, translateY, onClose }: AllEchoesShe
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.allSheetScroll,
-        ]}
+        contentContainerStyle={[styles.allSheetScroll]}
       >
         {ranges.length == 0 ? (
-          <Text style={styles.allSheetEmpty}>No echoes yet - keep journaling!</Text>
+          <Text style={styles.allSheetEmpty}>
+            No echoes yet - keep journaling!
+          </Text>
         ) : (
           ranges.map(({ start, end }, i) => {
             const summary = getSummary(echoView, start);
-            const label = formatPeriodLabel(echoView, start, echoView == "weekly" ? end : undefined);
+            const label = formatPeriodLabel(
+              echoView,
+              start,
+              echoView == "weekly" ? end : undefined,
+            );
             const isExpanded = expandedIndex == i;
             return (
               <Pressable
                 key={i}
                 style={styles.allSheetRow}
-                onPress={() => summary && setExpandedIndex(isExpanded ? null : i)}
+                onPress={() =>
+                  summary && setExpandedIndex(isExpanded ? null : i)
+                }
               >
                 <View style={styles.cardHighlight} />
                 <View style={styles.allSheetRowHeader}>
@@ -419,7 +506,9 @@ function AllEchoesSheet({ echoView, entries, translateY, onClose }: AllEchoesShe
                     </Text>
                   </>
                 ) : (
-                  <Text style={styles.allSheetRowEmpty}>No echo for this period</Text>
+                  <Text style={styles.allSheetRowEmpty}>
+                    No echo for this period
+                  </Text>
                 )}
               </Pressable>
             );
@@ -458,15 +547,20 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
           <View style={styles.cardHighlight} />
 
           {/* Lock icon */}
-          <MaterialIcons name ="lock" color={colors.mood.veryLow} style={styles.lockIcon}></MaterialIcons>
+          <MaterialIcons
+            name="lock"
+            color={colors.mood.veryLow}
+            style={styles.lockIcon}
+          ></MaterialIcons>
 
           <Text style={styles.patternPlaceholderTitle}>Patterns locked</Text>
           <Text style={styles.patternPlaceholderText}>
             Journal{" "}
             <Text style={{ fontFamily: fonts.bold, color: colors.textPrimary }}>
               {5 - scoredCount} more {5 - scoredCount == 1 ? "day" : "days"}
-            </Text>
-            {" "}to unlock insights about your mood, your best days, and how consistent you've been.
+            </Text>{" "}
+            to unlock insights about your mood, your best days, and how
+            consistent you've been.
           </Text>
 
           {/* Progress bar */}
@@ -498,16 +592,19 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
         </View>
       ) : (
         <View style={styles.patternGrid}>
-
           {/* Best day of week */}
           <PatternCard title="Best day" locked={!dayStats}>
             {dayStats ? (
               <>
-                <Text style={styles.patternHighlight}>{getDayName(dayStats.best)}</Text>
+                <Text style={styles.patternHighlight}>
+                  {getDayName(dayStats.best)}
+                </Text>
                 <Text style={styles.patternSub}>tends to be your best day</Text>
               </>
             ) : (
-              <Text style={styles.patternPending}>Journal on more days to unlock</Text>
+              <Text style={styles.patternPending}>
+                Journal on more days to unlock
+              </Text>
             )}
           </PatternCard>
 
@@ -515,11 +612,15 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
           <PatternCard title="Toughest day" locked={!dayStats}>
             {dayStats ? (
               <>
-                <Text style={styles.patternHighlight}>{getDayName(dayStats.worst)}</Text>
+                <Text style={styles.patternHighlight}>
+                  {getDayName(dayStats.worst)}
+                </Text>
                 <Text style={styles.patternSub}>tends to be harder</Text>
               </>
             ) : (
-              <Text style={styles.patternPending}>Journal on more days to unlock</Text>
+              <Text style={styles.patternPending}>
+                Journal on more days to unlock
+              </Text>
             )}
           </PatternCard>
 
@@ -527,14 +628,20 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
           <PatternCard title="This month">
             {avgLabel && avgColour && avgText ? (
               <View style={styles.monthMoodRow}>
-                <View style={[styles.monthMoodBar, { backgroundColor: avgColour }]} />
+                <View
+                  style={[styles.monthMoodBar, { backgroundColor: avgColour }]}
+                />
                 <View>
-                  <Text style={[styles.patternHighlight, { color: avgColour }]}>{avgText}</Text>
+                  <Text style={[styles.patternHighlight, { color: avgColour }]}>
+                    {avgText}
+                  </Text>
                   <Text style={styles.patternSub}>average mood</Text>
                 </View>
               </View>
             ) : (
-              <Text style={styles.patternPending}>No entries this month yet</Text>
+              <Text style={styles.patternPending}>
+                No entries this month yet
+              </Text>
             )}
           </PatternCard>
 
@@ -542,7 +649,10 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
           <PatternCard title="Consistency">
             <Text style={styles.patternHighlight}>
               {consistency.journaled}
-              <Text style={styles.patternHighlightSmall}> / {consistency.total}</Text>
+              <Text style={styles.patternHighlightSmall}>
+                {" "}
+                / {consistency.total}
+              </Text>
             </Text>
             <Text style={styles.patternSub}>days journaled this month</Text>
             {/* Visual bar showing journaling consistency as a filled proportion */}
@@ -552,14 +662,14 @@ function PatternsSection({ entries, year, month }: PatternsSectionProps) {
                   styles.consistencyBarFill,
                   {
                     width: `${Math.round(
-                      (consistency.journaled / Math.max(consistency.total, 1)) * 100
+                      (consistency.journaled / Math.max(consistency.total, 1)) *
+                        100,
                     )}%`,
                   },
                 ]}
               />
             </View>
           </PatternCard>
-
         </View>
       )}
     </View>
@@ -577,13 +687,18 @@ interface EchoesSectionProps {
  * Shows the most recent weekly or monthly echoes as a carousel,
  * with a "See all" button that opens the full history sheet.
  */
-function EchoesSection({ entries, echoView, onViewChange, onSeeAll }: EchoesSectionProps) {
+function EchoesSection({
+  entries,
+  echoView,
+  onViewChange,
+  onSeeAll,
+}: EchoesSectionProps) {
   // Build cards for the most recent periods - real summaries or placeholders
   const weekCards: EchoCard[] = getLastNWeekRanges(4).map(({ start, end }) =>
-    buildEchoCard("weekly", start, getSummary("weekly", start), end)
+    buildEchoCard("weekly", start, getSummary("weekly", start), end),
   );
   const monthCards: EchoCard[] = getLastNMonthRanges(3).map(({ start }) =>
-    buildEchoCard("monthly", start, getSummary("monthly", start))
+    buildEchoCard("monthly", start, getSummary("monthly", start)),
   );
   const cards = echoView == "weekly" ? weekCards : monthCards;
 
@@ -594,18 +709,34 @@ function EchoesSection({ entries, echoView, onViewChange, onSeeAll }: EchoesSect
         <Text style={styles.sectionLabel}>Echoes</Text>
         <View style={styles.echoPillRow}>
           <Pressable
-            style={[styles.echoPill, echoView == "weekly" && styles.echoPillActive]}
+            style={[
+              styles.echoPill,
+              echoView == "weekly" && styles.echoPillActive,
+            ]}
             onPress={() => onViewChange("weekly")}
           >
-            <Text style={[styles.echoPillText, echoView == "weekly" && styles.echoPillTextActive]}>
+            <Text
+              style={[
+                styles.echoPillText,
+                echoView == "weekly" && styles.echoPillTextActive,
+              ]}
+            >
               Weekly
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.echoPill, echoView == "monthly" && styles.echoPillActive]}
+            style={[
+              styles.echoPill,
+              echoView == "monthly" && styles.echoPillActive,
+            ]}
             onPress={() => onViewChange("monthly")}
           >
-            <Text style={[styles.echoPillText, echoView == "monthly" && styles.echoPillTextActive]}>
+            <Text
+              style={[
+                styles.echoPillText,
+                echoView == "monthly" && styles.echoPillTextActive,
+              ]}
+            >
               Monthly
             </Text>
           </Pressable>
@@ -622,7 +753,7 @@ function EchoesSection({ entries, echoView, onViewChange, onSeeAll }: EchoesSect
   );
 }
 
-// Insights screen 
+// Insights screen
 /** Insights screen - calendar view, patterns, and Echoes summaries */
 export default function Insights() {
   const todayStr = getTodayDate();
@@ -652,7 +783,7 @@ export default function Insights() {
   /** O(1) lookup map from YYYY-MM-DD -> Entry, rebuilt only when entries change */
   const entryMap = useMemo(
     () => new Map(entries.map((e) => [e.entryDate, e])),
-    [entries]
+    [entries],
   );
 
   /** Reload entry data whenever the screen gains focus */
@@ -661,7 +792,7 @@ export default function Insights() {
       // Load two years back so navigating to the previous year still shows real data
       const rangeStart = `${currentYear - 1}-01-01`;
       setEntries(getEntriesInRange(rangeStart, todayStr));
-    }, [])
+    }, []),
   );
 
   /** Slides the sheet up and pins the tapped entry to show */
@@ -745,7 +876,12 @@ export default function Insights() {
                 style={[styles.pill, view == "month" && styles.pillActive]}
                 onPress={() => setView("month")}
               >
-                <Text style={[styles.pillText, view == "month" && styles.pillTextActive]}>
+                <Text
+                  style={[
+                    styles.pillText,
+                    view == "month" && styles.pillTextActive,
+                  ]}
+                >
                   Month
                 </Text>
               </Pressable>
@@ -753,7 +889,12 @@ export default function Insights() {
                 style={[styles.pill, view == "year" && styles.pillActive]}
                 onPress={() => setView("year")}
               >
-                <Text style={[styles.pillText, view == "year" && styles.pillTextActive]}>
+                <Text
+                  style={[
+                    styles.pillText,
+                    view == "year" && styles.pillTextActive,
+                  ]}
+                >
                   Year
                 </Text>
               </Pressable>
@@ -761,8 +902,12 @@ export default function Insights() {
             {/* Year navigation - only visible in year view */}
             {view == "year" && (
               <View style={styles.yearNavRow}>
-                <Pressable onPress={goToPrevYear} hitSlop={12} style={styles.navArrow}>
-                  <Text style={styles.navArrowText}>{'<'}</Text>
+                <Pressable
+                  onPress={goToPrevYear}
+                  hitSlop={12}
+                  style={styles.navArrow}
+                >
+                  <Text style={styles.navArrowText}>{"<"}</Text>
                 </Pressable>
                 <Text style={styles.yearNumber}>{calYear}</Text>
                 <Pressable
@@ -771,8 +916,13 @@ export default function Insights() {
                   style={styles.navArrow}
                   disabled={calYear >= currentYear}
                 >
-                  <Text style={[styles.navArrowText, calYear >= currentYear && styles.navArrowDisabled]}>
-                    {'>'}
+                  <Text
+                    style={[
+                      styles.navArrowText,
+                      calYear >= currentYear && styles.navArrowDisabled,
+                    ]}
+                  >
+                    {">"}
                   </Text>
                 </Pressable>
               </View>
@@ -816,9 +966,7 @@ export default function Insights() {
       </ScrollView>
 
       {/* Backdrop for day detail sheet */}
-      {sheetOpen && (
-        <Pressable style={styles.backdrop} onPress={closeSheet} />
-      )}
+      {sheetOpen && <Pressable style={styles.backdrop} onPress={closeSheet} />}
 
       {/* Day detail sheet - only mounted when an entry is selected */}
       {selectedEntry && (
@@ -877,7 +1025,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  // Pill toggle 
+  // Pill toggle
   pillRow: {
     flexDirection: "row",
     backgroundColor: colors.background,
@@ -904,7 +1052,7 @@ const styles = StyleSheet.create({
     color: colors.background,
   },
 
-  // Calendar card 
+  // Calendar card
   calendarCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
@@ -922,7 +1070,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.07)",
   },
 
-  // Month view 
+  // Month view
   monthNavRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -989,7 +1137,7 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
 
-  // Year view 
+  // Year view
   yearMonthLabelRow: {
     height: 16,
     marginBottom: 4,
@@ -1038,7 +1186,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
 
-  // Bottom sheet 
+  // Bottom sheet
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.5)",

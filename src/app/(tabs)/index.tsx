@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect  } from "react";
-import { Text, View, StyleSheet, Pressable, ScrollView, Dimensions, Alert } from "react-native";
+import { Text, View, StyleSheet, Pressable, ScrollView, Dimensions, Alert, Image } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import Animated, {
   FadeInDown,
@@ -218,11 +218,10 @@ export default function Home() {
               >
                 {item.moodIcon && item.moodColor ? (
                   <View style={[styles.blob,
-                  { backgroundColor: item.moodColor, justifyContent: "center", alignItems: "center" }]}>
-                    <MaterialIcons
-                      name={item.moodIcon}
-                      size={24}
-                      color={colors.background}
+                  { backgroundColor: item.moodColor + "22", justifyContent: "center", alignItems: "center" }]}>
+                    <Image
+                      source={item.moodIcon}
+                      style={{ width: 30, height: 30 }}
                     />
                   </View>
                 ) : (

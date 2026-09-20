@@ -89,25 +89,29 @@ export default function Settings() {
     setDayCutoffHour(hour);
   }, []);
 
-  /** Generates a JSON file and opens the native save/share dialog */
+  /** Generates a JSON file and saves directly to the device Downloads folder */
   const handleExport = useCallback(async () => {
     try {
       const dataString = await exportData();
-      const fileUri = FileSystem.documentDirectory + "echoes_backup.json";
-      
+      const fileName = `echoes_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      const downloadDir = FileSystem.StorageAccessFramework;
+
+      // Request permission to write to Downloads
+      const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permissions.granted) return;
+
+      // Create the file in the chosen directory
+      const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        permissions.directoryUri,
+        fileName,
+        "application/json"
+      );
+
       await FileSystem.writeAsStringAsync(fileUri, dataString, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/json",
-          dialogTitle: "Save Echoes Backup",
-        });
-      } else {
-        Alert.alert("Error", "File sharing is not available on this device.");
-      }
+      Alert.alert("Saved", `Backup saved as ${fileName}`);
     } catch (e) {
       Alert.alert("Export Failed", "Something went wrong while exporting your data.");
     }
@@ -124,9 +128,7 @@ export default function Settings() {
       if (result.canceled || !result.assets || result.assets.length === 0) return;
 
       const fileUri = result.assets[0].uri;
-      const fileContents = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const fileContents = await fetch(fileUri).then((r) => r.text());
 
       const success = importData(fileContents);
       if(success){
