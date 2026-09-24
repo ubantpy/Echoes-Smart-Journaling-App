@@ -21,11 +21,11 @@ export const moodColourMap: Record<SentimentLabel, string> = {
 };
 
 export const moodIconMap: Record<SentimentLabel, any> = {
-  very_positive: require("../../assets/icons/vh1.1.png"),
-  positive: require("../../assets/icons/h1.png"),
-  neutral: require("../../assets/icons/h2.png"),
-  negative: require("../../assets/icons/vh1.2.png"),
-  very_negative: require("../../assets/icons/vh1.2.png"),
+  very_positive: require("../../assets/icons/vh1.2.png"),
+  positive: require("../../assets/icons/happy.png"),
+  neutral: require("../../assets/icons/neutral.png"),
+  negative: require("../../assets/icons/sad1.png"),
+  very_negative: require("../../assets/icons/verysad.png"),
 };
 
 export async function analyseSentiment(
