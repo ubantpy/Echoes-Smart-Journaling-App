@@ -20,8 +20,8 @@ async function generateIfNeeded(
   // If not enough entries, skip without calling the backend
   if (entries.length < MIN_ENTRIES) return;
 
-  // Concatenate entry texts into one block for the backend
-  const texts = entries.map((e) => e.mainText);
+  // Combine each day's main entry with its quick notes into one block for the backend
+  const texts = entries.map((e) => [e.mainText, ...e.additionalEntries].join("\n"));
   const summaryText = await fetchSummary(texts, periodType);
   if (!summaryText) return;
 
