@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Text, View, StyleSheet, Pressable, TextInput } from "react-native";
+import { Text, View, StyleSheet, Pressable, TextInput, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAudioRecorder, AudioModule, RecordingPresets } from "expo-audio";
 import Animated, {
@@ -116,23 +116,45 @@ export default function NewEntry() {
     setHasEntryYesterday(!!getEntryForDate(str));
   }, []);
 
-  /** Asks for microphone permission and starts recording */
+    /** Asks for microphone permission and starts recording - returns to choose screen on failure */
   const startRecording = async () => {
-    const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-    if (!granted) return;
-    await audioRecorder.prepareToRecordAsync();
-    audioRecorder.record();
-    setElapsed(0);
-    timerRef.current = setInterval(() => setElapsed((p) => p + 1), 1000);
+    try{
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      if (!granted) {
+        setMode("choose");
+        Alert.alert(
+          "Microphone access needed",
+          "Allow microphone access for Echoes in your phone's Settings, or use Write instead."
+        );
+        return;
+      }
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed((p) => p + 1), 1000);
+    }
+    catch{
+      setMode("choose");
+      Alert.alert("Recording failed", "Couldn't start the microphone. Please try again or use Write instead.");
+    }
   };
 
   /** Stops recording, transcribes, analyses sentiment, saves entry */
   const stopRecording = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     setIsProcessing(true);
-    await audioRecorder.stop();
+    try{
+      await audioRecorder.stop();
+    } 
+    catch {}
     const uri = audioRecorder.uri;
-    if (!uri) { setIsProcessing(false); return; }
+    // If there was an issue recording
+    if (!uri){
+      setIsProcessing(false);
+      setMode("choose");
+      setBannerMessage("Nothing was recorded - please try again.");
+      return;
+    }
 
     const online = await isConnected();
     if (!online) {
