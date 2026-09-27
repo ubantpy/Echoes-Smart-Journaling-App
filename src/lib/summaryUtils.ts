@@ -1,10 +1,10 @@
-import { formatDateString } from "./dateUtils";
+import { formatDateString, getTodayDate } from "./dateUtils";
 
 /** Returns the Monday and Sunday of the previous complete week as YYYY-MM-DD */
 export function getLastWeekRange(): {
     start: string; end: string
     } {
-  const today = new Date();
+  const today = new Date(getTodayDate() + "T00:00:00");
   // getDay() returns 0=Sun, 1=Mon etc. Convert to 0=Mon
   const daysSinceMonday = (today.getDay() + 6) % 7;
   // Last Sunday = yesterday relative to this week's Monday
@@ -21,7 +21,7 @@ export function getLastWeekRange(): {
 
 /** Returns the first and last day of the previous calendar month as YYYY-MM-DD */
 export function getLastMonthRange(): { start: string; end: string } {
-  const today = new Date();
+  const today = new Date(getTodayDate() + "T00:00:00");
   // Setting day to 0 on the current month gives the last day of the previous month
   const lastOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
   const firstOfPrevMonth = new Date(lastOfPrevMonth.getFullYear(), lastOfPrevMonth.getMonth(), 1);
@@ -57,7 +57,7 @@ export function formatPeriodLabel(
  */
 export function getLastNWeekRanges(n: number): { start: string; end: string }[] {
   const ranges: { start: string; end: string }[] = [];
-  const today = new Date();
+  const today = new Date(getTodayDate() + "T00:00:00");
   const daysSinceMonday = (today.getDay() + 6) % 7;
   const lastSunday = new Date(today);
   lastSunday.setDate(today.getDate() - daysSinceMonday - 1);
@@ -77,7 +77,7 @@ export function getLastNWeekRanges(n: number): { start: string; end: string }[] 
  */
 export function getLastNMonthRanges(n: number): { start: string; end: string }[] {
   const ranges: { start: string; end: string }[] = [];
-  const today = new Date();
+  const today = new Date(getTodayDate() + "T00:00:00");
   for (let i = 1; i <= n; i++) {
     const lastOfMonth = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
     const firstOfMonth = new Date(lastOfMonth.getFullYear(), lastOfMonth.getMonth(), 1);
@@ -92,7 +92,7 @@ export function getLastNMonthRanges(n: number): { start: string; end: string }[]
  */
 export function getAllWeekRangesFrom(firstEntryDate: string): { start: string; end: string }[] {
   const ranges: { start: string; end: string }[] = [];
-  const today = new Date();
+  const today = new Date(getTodayDate() + "T00:00:00");
   const daysSinceMonday = (today.getDay() + 6) % 7;
   const cursor = new Date(today);
   cursor.setDate(today.getDate() - daysSinceMonday - 1);
@@ -114,7 +114,7 @@ export function getAllWeekRangesFrom(firstEntryDate: string): { start: string; e
  */
 export function getAllMonthRangesFrom(firstEntryDate: string): { start: string; end: string }[] {
   const ranges: { start: string; end: string }[] = [];
-  const today = new Date();
+  const today = new Date(getTodayDate() + "T00:00:00");
   let year = today.getFullYear();
   let month = today.getMonth() - 1;
   if (month < 0) { month = 11; year--; }
